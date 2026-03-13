@@ -3,11 +3,14 @@
 from pa_core.cli_runner import run_gws
 
 
-def get_unread_emails(limit: int = 10) -> list[dict]:
-    """Fetch unread emails via gws CLI."""
+def get_inbox_emails(limit: int = 50, unread_only: bool = False) -> list[dict]:
+    """Fetch emails in inbox. By default gets ALL inbox emails (read + unread) for full triage."""
+    q = "in:inbox"
+    if unread_only:
+        q += " is:unread"
     result = run_gws("gmail", "users.messages", "list", {
         "userId": "me",
-        "q": "is:unread",
+        "q": q,
         "maxResults": limit,
     })
     messages = result.get("messages", [])
@@ -19,8 +22,7 @@ def get_unread_emails(limit: int = 10) -> list[dict]:
         detail = run_gws("gmail", "users.messages", "get", {
             "userId": "me",
             "id": msg["id"],
-            "format": "metadata",
-            "metadataHeaders": ["From", "Subject", "Date"],
+            "format": "full",
         })
         headers = {h["name"]: h["value"] for h in detail.get("payload", {}).get("headers", [])}
         detailed.append({

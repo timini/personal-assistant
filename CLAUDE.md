@@ -52,32 +52,35 @@ PA/
     └── weekly-review.py
 ```
 
-## Package Details
+## Package Goals & Details
+
+Each package has a clear goal that drives how Claude should use it.
 
 ### pa-core
-Shared infrastructure — NO integration-specific code.
+**Goal: Reliable shared infrastructure that all plugins depend on.**
+Shared utilities — NO integration-specific code. If core is broken, everything is broken, so changes here should be careful and minimal.
 - `config.py` — Loads `.env` and `user.yaml`. Exports `get_secret()`, `get_user_config()`, `PA_ROOT`.
 - `cli_runner.py` — `run_cli()` subprocess wrapper, `parse_json_output()`, `run_gws()` convenience for gws CLI.
 - `log.py` — `get_logger(name)` for consistent logging.
 - `setup.py` — Interactive first-run: generates `user.yaml`, guides integration setup.
 
 ### pa-google
-Wraps the `gws` CLI via `pa_core.cli_runner.run_gws()`.
+**Goal: Inbox Zero.** The inbox should be empty at all times. When processing emails, Claude should immediately take action on every message — archive noise, reply where possible, snooze time-sensitive items, or create a Notion task for anything that needs follow-up later. No email should sit unread in the inbox without a decision being made. Calendar awareness supports this by providing context for scheduling and priorities.
 - `gmail.py` — `get_unread_emails()`, `get_email_body()`
 - `calendar.py` — `get_todays_events()`, `get_upcoming_events()`
 - `cli.py` — CLI entry point with `briefing`, `emails`, `calendar` commands
 
 ### pa-notion
-Direct Notion API access via httpx.
+**Goal: Single source of truth for all tasks and commitments.** Every actionable item — from emails, conversations, or ad-hoc requests — should end up as a Notion task with the right project, priority, and status. Claude should keep this list current: close completed tasks, escalate overdue ones, and ensure nothing falls through the cracks.
 - `client.py` — `NotionClient` class: query, create, update pages
 - `tasks.py` — `list_tasks()`, `add_task()`, `update_task()` against NOTION_TASKS_DB_ID
 - `cli.py` — CLI entry point with `tasks list|add|update` commands
 
 ### pa-whatsapp (stub)
-Not yet implemented. Needs WhatsApp API research.
+**Goal: Surface and act on important messages.** WhatsApp is a high-noise channel. The goal is to flag messages that need a response or action, and ignore the rest. Not yet implemented — needs WhatsApp API research.
 
 ### pa-finance (stub)
-Not yet implemented. Needs Lunchflow setup.
+**Goal: Financial awareness and bill tracking.** Surface upcoming payments, flag overdue bills, and provide spending summaries so nothing gets missed. Not yet implemented — needs Lunchflow setup.
 
 ## Configuration
 
@@ -117,6 +120,23 @@ When Claude does significant work with a plugin, it should update that plugin's 
 
 ## Suggested Workflows
 
-1. **Daily**: Use `pa-google briefing` for emails/calendar, `pa-notion tasks list` for open tasks
-2. **Weekly**: Review tasks, prep for meetings, update activity logs
-3. **Ongoing**: Track milestones, add/update tasks in Notion, maintain activity logs
+### Email triage (Inbox Zero)
+1. Fetch unread inbox emails with `pa-google emails --unread`
+2. For each email, decide immediately:
+   - **Noise** (newsletters, notifications, delivery updates) → archive
+   - **Quick action** (pay a bill, RSVP, short reply) → do it now, then archive
+   - **Needs follow-up** → create a Notion task with context, then archive
+   - **Time-sensitive** → flag to user, or snooze if possible
+3. **If an email already has a matching Notion task, or you create one, always archive the email immediately.** Don't keep emails in the inbox as reminders — that's what Notion tasks are for.
+4. **When creating or updating a Notion task from an email, include a link to the email** in the task. Gmail links follow the format: `https://mail.google.com/mail/u/0/#inbox/<message_id>`
+5. Goal: inbox should be empty after every triage session
+
+### Daily
+1. Run email triage (above)
+2. Check calendar with `pa-google calendar` for today's context
+3. Review open tasks with `pa-notion tasks list --status "To Do"` and suggest priorities
+
+### Weekly
+1. Full task review — check for stale, overdue, or completed tasks
+2. Prep for upcoming meetings/1:1s using calendar
+3. Update activity logs with significant events

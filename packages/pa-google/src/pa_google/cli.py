@@ -4,7 +4,7 @@ import argparse
 import json
 import sys
 
-from pa_google.gmail import get_unread_emails
+from pa_google.gmail import get_inbox_emails
 from pa_google.calendar import get_todays_events, get_upcoming_events
 
 
@@ -22,9 +22,9 @@ def cmd_briefing(args):
     except Exception as e:
         print(f"  Error fetching calendar: {e}", file=sys.stderr)
 
-    print("\n=== Unread Emails ===\n")
+    print("\n=== Inbox Emails ===\n")
     try:
-        emails = get_unread_emails(limit=10)
+        emails = get_inbox_emails(limit=10)
         if emails:
             for em in emails:
                 print(f"  From: {em['from']}")
@@ -38,9 +38,9 @@ def cmd_briefing(args):
 
 
 def cmd_emails(args):
-    """List emails (unread by default)."""
+    """List inbox emails."""
     try:
-        emails = get_unread_emails(limit=args.limit)
+        emails = get_inbox_emails(limit=args.limit, unread_only=args.unread)
         if args.json:
             print(json.dumps(emails, indent=2))
         else:
@@ -81,8 +81,8 @@ def main():
     sub.add_parser("briefing", help="Morning briefing (calendar + emails)")
 
     emails_p = sub.add_parser("emails", help="List emails")
-    emails_p.add_argument("--unread", action="store_true", default=True)
-    emails_p.add_argument("--limit", type=int, default=10)
+    emails_p.add_argument("--unread", action="store_true", default=False, help="Only show unread emails")
+    emails_p.add_argument("--limit", type=int, default=50)
     emails_p.add_argument("--json", action="store_true")
 
     cal_p = sub.add_parser("calendar", help="Show calendar events")

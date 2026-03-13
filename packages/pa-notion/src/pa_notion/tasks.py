@@ -58,25 +58,27 @@ def list_tasks(status_filter: str | None = None) -> list[dict]:
     if status_filter:
         filter_body = {
             "property": "Status",
-            "status": {"equals": status_filter},
+            "select": {"equals": status_filter},
         }
 
     pages = client.query_database(db_id, filter=filter_body)
     return [_extract_task(p) for p in pages]
 
 
-def add_task(title: str, project: str = "", priority: str = "") -> dict:
+def add_task(title: str, project: str = "", priority: str = "", notes: str = "") -> dict:
     """Add a new task to the tasks database."""
     client = NotionClient()
     db_id = _get_db_id()
 
     properties: dict = {
-        "Name": {"title": [{"text": {"content": title}}]},
+        "Task": {"title": [{"text": {"content": title}}]},
     }
     if project:
         properties["Project"] = {"select": {"name": project}}
     if priority:
         properties["Priority"] = {"select": {"name": priority}}
+    if notes:
+        properties["Notes"] = {"rich_text": [{"text": {"content": notes}}]}
 
     page = client.create_page(db_id, properties)
     return _extract_task(page)
@@ -90,7 +92,7 @@ def update_task(task_id: str, **updates) -> dict:
     if "title" in updates:
         properties["Name"] = {"title": [{"text": {"content": updates["title"]}}]}
     if "status" in updates:
-        properties["Status"] = {"status": {"name": updates["status"]}}
+        properties["Status"] = {"select": {"name": updates["status"]}}
     if "priority" in updates:
         properties["Priority"] = {"select": {"name": updates["priority"]}}
     if "project" in updates:

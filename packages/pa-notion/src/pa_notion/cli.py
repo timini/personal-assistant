@@ -33,7 +33,7 @@ def cmd_tasks_list(args):
 def cmd_tasks_add(args):
     """Add a task."""
     try:
-        task = add_task(args.title, project=args.project or "", priority=args.priority or "")
+        task = add_task(args.title, project=args.project or "", priority=args.priority or "", notes=args.notes or "")
         if args.json:
             print(json.dumps(task, indent=2))
         else:
@@ -90,6 +90,7 @@ def main():
     add_p.add_argument("title", help="Task title")
     add_p.add_argument("--project", help="Project name")
     add_p.add_argument("--priority", help="Priority level")
+    add_p.add_argument("--notes", help="Notes (e.g. email link)")
     add_p.add_argument("--json", action="store_true")
 
     # tasks update

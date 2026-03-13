@@ -44,9 +44,15 @@ def run_cli(
 
 
 def parse_json_output(result: subprocess.CompletedProcess) -> Any:
-    """Parse JSON from a command's stdout."""
+    """Parse JSON from a command's stdout, skipping any non-JSON preamble lines."""
+    stdout = result.stdout.strip()
+    # Some CLI tools (e.g. gws) print info lines before JSON — find the first { or [
+    for i, char in enumerate(stdout):
+        if char in ('{', '['):
+            stdout = stdout[i:]
+            break
     try:
-        return json.loads(result.stdout)
+        return json.loads(stdout)
     except json.JSONDecodeError:
         print(f"Failed to parse JSON from output: {result.stdout[:200]}", file=sys.stderr)
         raise
@@ -58,14 +64,23 @@ def run_gws(
     method: str,
     params: dict | None = None,
     *,
+    body: dict | None = None,
     timeout: int = 60,
+    page_all: bool = False,
 ) -> Any:
     """Convenience wrapper for Google Workspace CLI (gws) calls.
 
+    Resource can use dots or spaces: "users.messages" becomes "users messages".
     Example: run_gws("gmail", "users.messages", "list", {"userId": "me", "maxResults": 10})
     """
-    cmd = ["gws", service, resource, method]
+    # gws expects space-separated resource parts, not dots
+    resource_parts = resource.replace(".", " ").split()
+    cmd = ["gws", service, *resource_parts, method]
     if params:
-        cmd.append(json.dumps(params))
+        cmd.extend(["--params", json.dumps(params)])
+    if body:
+        cmd.extend(["--json", json.dumps(body)])
+    if page_all:
+        cmd.append("--page-all")
     result = run_cli(cmd, timeout=timeout)
     return parse_json_output(result)
