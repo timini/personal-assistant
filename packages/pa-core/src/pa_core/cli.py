@@ -10,12 +10,34 @@ def cmd_setup(args):
 
 
 def cmd_briefing(args):
-    from pa_core.briefing import generate_briefing, save_briefing
-    if args.save:
-        path = save_briefing(date=args.date)
-        print(f"Saved to {path}")
+    if args.evening:
+        from pa_core.briefing import generate_evening_briefing, save_evening_briefing
+        if args.save:
+            path = save_evening_briefing(date=args.date)
+            print(f"Saved to {path}")
+        else:
+            print(generate_evening_briefing(date=args.date))
+        if args.telegram:
+            try:
+                from pa_telegram.client import send_evening_briefing
+                send_evening_briefing(date=args.date)
+                print("Evening briefing sent to Telegram.")
+            except (ImportError, Exception) as exc:
+                print(f"Telegram send failed: {exc}", file=sys.stderr)
     else:
-        print(generate_briefing(date=args.date))
+        from pa_core.briefing import generate_briefing, save_briefing
+        if args.save:
+            path = save_briefing(date=args.date)
+            print(f"Saved to {path}")
+        else:
+            print(generate_briefing(date=args.date))
+        if args.telegram:
+            try:
+                from pa_telegram.client import send_briefing
+                send_briefing(date=args.date)
+                print("Briefing sent to Telegram.")
+            except (ImportError, Exception) as exc:
+                print(f"Telegram send failed: {exc}", file=sys.stderr)
     if args.backup:
         try:
             from pa_google.drive import run_backup
@@ -45,9 +67,11 @@ def main():
 
     # briefing
     bp = sub.add_parser("briefing", help="Generate daily briefing")
+    bp.add_argument("--evening", action="store_true", help="Generate evening briefing instead of morning")
     bp.add_argument("--save", action="store_true", help="Save briefing to file")
     bp.add_argument("--date", default=None, help="Date (YYYY-MM-DD), defaults to today")
     bp.add_argument("--backup", action="store_true", help="Backup personal files after saving")
+    bp.add_argument("--telegram", action="store_true", help="Send briefing to Telegram")
 
     # log
     lp = sub.add_parser("log", help="Log an event to today's daily log")

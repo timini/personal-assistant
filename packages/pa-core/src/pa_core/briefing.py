@@ -1,126 +1,173 @@
 """Generate daily briefing from event log, calendar, and tasks."""
 
-from collections import Counter
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from pa_core.config import PA_ROOT
+from pa_core.config import PA_ROOT, get_user_config
 from pa_core.daily_log import get_events, _today_str
 
 BRIEFINGS_DIR = PA_ROOT / "activity" / "briefings"
 
+PRIORITY_ORDER = {"Urgent": 0, "High": 1, "Medium": 2, "Low": 3, "": 4}
 
-def generate_briefing(date: str | None = None) -> str:
-    """Generate a markdown daily briefing. Returns the markdown string."""
-    date = date or _today_str()
-    events = get_events(date)
 
-    sections = []
-    sections.append(f"# Daily Briefing — {date}\n")
+def _task_sort_key(task: dict) -> tuple:
+    """Sort: overdue first, then by priority, then by due date proximity."""
+    today = date.today().isoformat()
+    due = task.get("due_date", "")
+    is_overdue = due and due < today
+    priority_rank = PRIORITY_ORDER.get(task.get("priority", ""), 4)
+    due_sort = due if due else "9999-99-99"
+    return (not is_overdue, priority_rank, due_sort)
 
-    # 1. Wins & Accomplishments
-    completed = [e for e in events if e["action"] in ("archived", "completed", "resolved", "created")]
-    sections.append("## Wins & Accomplishments\n")
-    if completed:
-        for e in completed:
-            project_tag = f" [{e['project']}]" if e.get("project") else ""
-            sections.append(f"- **{e['action'].title()}**: {e['summary']}{project_tag}")
-    else:
-        sections.append("_No actions logged yet today._")
-    sections.append("")
 
-    # 2. New Tasks Created
-    new_tasks = [e for e in events if e["category"] == "task" and e["action"] == "created"]
-    sections.append("## New Tasks Created\n")
-    if new_tasks:
-        for e in new_tasks:
-            project_tag = f" [{e['project']}]" if e.get("project") else ""
-            sections.append(f"- {e['summary']}{project_tag}")
-    else:
-        sections.append("_No new tasks created today._")
-    sections.append("")
+def _wellness_section(events: list[dict]) -> list[str]:
+    """Build 'How You're Doing' section from wellness check-ins."""
+    checkins = [e for e in events if e["category"] == "wellness" and e["action"] == "check_in"]
+    if not checkins:
+        return ["## How You're Doing\n", "_No check-in yet today._", ""]
 
-    # 3. Calendar (lazy import pa-google)
-    sections.append("## Calendar\n")
+    latest = checkins[-1]
+    details = latest.get("details", {})
+    mood = details.get("mood", "unknown")
+    energy = details.get("energy", "unknown")
+    parts = [f"Mood: {mood} | Energy: {energy}"]
+    if details.get("physical"):
+        parts.append(f"Physical: {details['physical']}")
+    if details.get("note"):
+        parts.append(f'"{details["note"]}"')
+
+    lines = ["## How You're Doing\n"]
+    lines.append(f"- {' | '.join(parts)}")
+    lines.append("")
+    return lines
+
+
+def _calendar_section(date_str: str) -> list[str]:
+    """Build Calendar section."""
+    lines = ["## Calendar\n"]
     try:
         from pa_google.calendar import get_todays_events, get_upcoming_events
+
         today_events = get_todays_events()
         if today_events:
-            sections.append("### Today")
+            lines.append("### Today")
             for ev in today_events:
                 time_str = ev.get("start", "")
                 if "T" in time_str:
                     time_str = time_str.split("T")[1][:5]
-                sections.append(f"- {time_str} {ev.get('summary', 'No title')}")
+                lines.append(f"- {time_str} {ev.get('summary', 'No title')}")
         else:
-            sections.append("_No events today._")
+            lines.append("_No events today._")
 
-        tomorrow_events = get_upcoming_events(days=2)
-        from datetime import timedelta
-        tomorrow_dt = datetime.strptime(date, "%Y-%m-%d") + timedelta(days=1)
+        tomorrow_dt = datetime.strptime(date_str, "%Y-%m-%d") + timedelta(days=1)
         tomorrow_str = tomorrow_dt.strftime("%Y-%m-%d")
+        tomorrow_events = get_upcoming_events(days=2)
         tomorrow_only = [
             ev for ev in tomorrow_events
             if tomorrow_str in ev.get("start", "")
         ]
         if tomorrow_only:
-            sections.append(f"\n### Tomorrow ({tomorrow_str})")
+            lines.append(f"\n### Tomorrow ({tomorrow_str})")
             for ev in tomorrow_only:
                 time_str = ev.get("start", "")
                 if "T" in time_str:
                     time_str = time_str.split("T")[1][:5]
-                sections.append(f"- {time_str} {ev.get('summary', 'No title')}")
+                lines.append(f"- {time_str} {ev.get('summary', 'No title')}")
     except (ImportError, Exception) as exc:
-        sections.append(f"_Calendar unavailable: {exc}_")
-    sections.append("")
+        lines.append(f"_Calendar unavailable: {exc}_")
+    lines.append("")
+    return lines
 
-    # 4. Important Info
-    info_events = [e for e in events if e["category"] == "info"]
-    sections.append("## Important Info\n")
-    if info_events:
-        for e in info_events:
-            sections.append(f"- {e['summary']}")
-    else:
-        sections.append("_No important info surfaced today._")
-    sections.append("")
 
-    # 5. Outstanding Items (lazy import pa-notion)
-    sections.append("## Outstanding Items\n")
-    flagged = [e for e in events if e["action"] == "flagged"]
-    if flagged:
-        sections.append("### Flagged Today")
-        for e in flagged:
-            sections.append(f"- {e['summary']}")
-        sections.append("")
-
+def _focus_section() -> list[str]:
+    """Build 'Today's Focus' — top 5 tasks sorted by urgency/due date."""
+    lines = []
     try:
         from pa_notion.tasks import list_tasks
-        open_tasks = list_tasks(status_filter="To Do")
-        if open_tasks:
-            sections.append("### Open Notion Tasks (To Do)")
-            for t in open_tasks[:15]:
-                priority = t.get("priority", "")
-                project = t.get("project", "")
-                due = t.get("due_date", "")
-                tags = " | ".join(filter(None, [priority, project, due]))
-                tag_str = f" ({tags})" if tags else ""
-                sections.append(f"- {t.get('title', 'Untitled')}{tag_str}")
-            if len(open_tasks) > 15:
-                sections.append(f"- _...and {len(open_tasks) - 15} more_")
-    except (ImportError, Exception) as exc:
-        sections.append(f"_Tasks unavailable: {exc}_")
-    sections.append("")
 
-    # 6. Stats
-    session_ids = set(e["session_id"] for e in events)
-    cat_counts = Counter(e["category"] for e in events)
-    sections.append("## Stats\n")
-    sections.append(f"- **Events logged**: {len(events)}")
-    sections.append(f"- **Sessions**: {len(session_ids)}")
-    if cat_counts:
-        breakdown = ", ".join(f"{k}: {v}" for k, v in sorted(cat_counts.items()))
-        sections.append(f"- **By category**: {breakdown}")
-    sections.append("")
+        open_tasks = list_tasks(status_filter="To Do")
+        if not open_tasks:
+            lines.append("## Today's Focus\n")
+            lines.append("_No open tasks — nice work!_")
+            lines.append("")
+            return lines
+
+        sorted_tasks = sorted(open_tasks, key=_task_sort_key)
+        top = sorted_tasks[:5]
+        total = len(open_tasks)
+        projects = len(set(t.get("project", "") for t in open_tasks if t.get("project")))
+
+        lines.append(f"## Today's Focus (top {len(top)} of {total} open tasks)\n")
+        today = date.today().isoformat()
+        for i, t in enumerate(top, 1):
+            priority = t.get("priority", "")
+            project = t.get("project", "")
+            due = t.get("due_date", "")
+            parts = []
+            if priority:
+                parts.append(f"[{priority}]")
+            parts.append(t.get("title", "Untitled"))
+            if due:
+                if due < today:
+                    parts.append(f"— **overdue** (due {due})")
+                else:
+                    parts.append(f"— due {due}")
+            if project:
+                parts.append(f"[{project}]")
+            lines.append(f"{i}. {' '.join(parts)}")
+
+        if total > 5:
+            lines.append(f"\n_{total} open tasks across {projects} projects. Showing the top 5._")
+    except (ImportError, Exception) as exc:
+        lines.append("## Today's Focus\n")
+        lines.append(f"_Tasks unavailable: {exc}_")
+    lines.append("")
+    return lines
+
+
+def _wins_section(events: list[dict]) -> list[str]:
+    """Build Wins section — only if there are completed actions."""
+    completed = [e for e in events if e["action"] in ("archived", "completed", "resolved", "created")]
+    if not completed:
+        return []
+
+    lines = ["## Wins So Far\n"]
+    for e in completed:
+        project_tag = f" [{e['project']}]" if e.get("project") else ""
+        lines.append(f"- **{e['action'].title()}**: {e['summary']}{project_tag}")
+    lines.append("")
+    return lines
+
+
+def _heads_up_section(events: list[dict]) -> list[str]:
+    """Build Heads Up section — flagged items + info events. Skip if empty."""
+    flagged = [e for e in events if e["action"] == "flagged"]
+    info = [e for e in events if e["category"] == "info"]
+    items = flagged + info
+    if not items:
+        return []
+
+    lines = ["## Heads Up\n"]
+    for e in items:
+        lines.append(f"- {e['summary']}")
+    lines.append("")
+    return lines
+
+
+def generate_briefing(date: str | None = None) -> str:
+    """Generate a markdown daily briefing. Returns the markdown string."""
+    date_str = date or _today_str()
+    events = get_events(date_str)
+
+    sections: list[str] = []
+    sections.append(f"# Daily Briefing — {date_str}\n")
+
+    sections.extend(_wellness_section(events))
+    sections.extend(_calendar_section(date_str))
+    sections.extend(_focus_section())
+    sections.extend(_wins_section(events))
+    sections.extend(_heads_up_section(events))
 
     return "\n".join(sections)
 
@@ -131,6 +178,193 @@ def save_briefing(date: str | None = None) -> Path:
     content = generate_briefing(date)
     BRIEFINGS_DIR.mkdir(parents=True, exist_ok=True)
     path = BRIEFINGS_DIR / f"{date}.md"
+    with open(path, "w") as f:
+        f.write(content)
+    return path
+
+
+# --- Evening Briefing ---
+
+
+def _streak_count(habit_name: str, date_str: str) -> int:
+    """Count consecutive days a habit was completed going backwards from date (exclusive)."""
+    streak = 0
+    current = datetime.strptime(date_str, "%Y-%m-%d").date()
+    for _ in range(30):  # look back up to 30 days
+        current -= timedelta(days=1)
+        day_events = get_events(current.isoformat())
+        completed = any(
+            e["category"] == "habit"
+            and e["action"] == "completed"
+            and e["summary"] == habit_name
+            for e in day_events
+        )
+        if completed:
+            streak += 1
+        else:
+            break
+    return streak
+
+
+def _habits_section(events: list[dict], date_str: str) -> list[str]:
+    """Build Habits section — configured habits + freeform, with streaks."""
+    config = get_user_config()
+    configured_habits = config.get("habits", [])
+    habit_events = [e for e in events if e["category"] == "habit"]
+
+    if not configured_habits and not habit_events:
+        return []
+
+    lines = ["## Habits\n"]
+
+    # Track which habit events are accounted for by configured habits
+    matched_summaries = set()
+
+    for habit in configured_habits:
+        name = habit.get("name", "")
+        emoji = habit.get("emoji", "")
+        completed_event = next(
+            (e for e in habit_events if e["summary"] == name and e["action"] == "completed"),
+            None,
+        )
+        skipped_event = next(
+            (e for e in habit_events if e["summary"] == name and e["action"] == "skipped"),
+            None,
+        )
+        matched_summaries.add(name)
+
+        if completed_event:
+            note = completed_event.get("details", {}).get("note", "")
+            duration = completed_event.get("details", {}).get("duration_min")
+            detail_parts = []
+            if duration:
+                detail_parts.append(f"{duration} min")
+            if note:
+                detail_parts.append(note)
+            detail_str = f' — "{", ".join(detail_parts)}"' if detail_parts else ""
+            prefix = f"{emoji} " if emoji else ""
+            lines.append(f"- {prefix}{name}{detail_str}")
+        elif skipped_event:
+            reason = skipped_event.get("details", {}).get("reason", "")
+            reason_str = f" — {reason}" if reason else ""
+            lines.append(f"- {name} — skipped{reason_str}")
+        else:
+            lines.append(f"- {name} — _not logged_")
+
+    # Freeform habit events (not matching configured habits)
+    freeform = [e for e in habit_events if e["summary"] not in matched_summaries and e["action"] == "completed"]
+    for e in freeform:
+        lines.append(f"- {e['summary']} (freeform)")
+
+    # Streaks for completed configured habits
+    streak_parts = []
+    for habit in configured_habits:
+        name = habit.get("name", "")
+        completed_today = any(
+            e["summary"] == name and e["action"] == "completed" for e in habit_events
+        )
+        if completed_today:
+            streak = _streak_count(name, date_str) + 1  # +1 for today
+        else:
+            streak = 0
+        if streak > 1:
+            streak_parts.append(f"{name} {streak} days")
+
+    if streak_parts:
+        lines.append(f"\nStreak: {' | '.join(streak_parts)}")
+
+    lines.append("")
+    return lines
+
+
+def _reflections_section(events: list[dict]) -> list[str]:
+    """Build Reflections section from info/flagged events."""
+    items = [e for e in events if e["category"] == "info" or e["action"] == "flagged"]
+    if not items:
+        return []
+    lines = ["## Reflections\n"]
+    for e in items:
+        lines.append(f"- {e['summary']}")
+    lines.append("")
+    return lines
+
+
+def _tomorrow_focus_section() -> list[str]:
+    """Build Tomorrow's Focus — top 3 tasks."""
+    lines = []
+    try:
+        from pa_notion.tasks import list_tasks
+
+        open_tasks = list_tasks(status_filter="To Do")
+        if not open_tasks:
+            lines.append("## Tomorrow's Focus\n")
+            lines.append("_No open tasks — enjoy the rest!_")
+            lines.append("")
+            return lines
+
+        sorted_tasks = sorted(open_tasks, key=_task_sort_key)
+        top = sorted_tasks[:3]
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+
+        lines.append("## Tomorrow's Focus\n")
+        for i, t in enumerate(top, 1):
+            priority = t.get("priority", "")
+            project = t.get("project", "")
+            due = t.get("due_date", "")
+            parts = []
+            if priority:
+                parts.append(f"[{priority}]")
+            parts.append(t.get("title", "Untitled"))
+            if due:
+                if due <= tomorrow:
+                    parts.append(f"— **due {due}**")
+                else:
+                    parts.append(f"— due {due}")
+            if project:
+                parts.append(f"[{project}]")
+            lines.append(f"{i}. {' '.join(parts)}")
+    except (ImportError, Exception) as exc:
+        lines.append("## Tomorrow's Focus\n")
+        lines.append(f"_Tasks unavailable: {exc}_")
+    lines.append("")
+    return lines
+
+
+def _gratitude_section(events: list[dict]) -> list[str]:
+    """Build Gratitude section from wellness/gratitude events."""
+    gratitude = [e for e in events if e["category"] == "wellness" and e["action"] == "gratitude"]
+    if not gratitude:
+        return ["## Gratitude\n", "_Not logged yet._", ""]
+    lines = ["## Gratitude\n"]
+    for e in gratitude:
+        lines.append(f"- {e['summary']}")
+    lines.append("")
+    return lines
+
+
+def generate_evening_briefing(date: str | None = None) -> str:
+    """Generate a markdown evening briefing. Returns the markdown string."""
+    date_str = date or _today_str()
+    events = get_events(date_str)
+
+    sections: list[str] = []
+    sections.append(f"# Evening Briefing — {date_str}\n")
+
+    sections.extend(_wins_section(events))
+    sections.extend(_habits_section(events, date_str))
+    sections.extend(_reflections_section(events))
+    sections.extend(_tomorrow_focus_section())
+    sections.extend(_gratitude_section(events))
+
+    return "\n".join(sections)
+
+
+def save_evening_briefing(date: str | None = None) -> Path:
+    """Generate and save the evening briefing. Returns the file path."""
+    date_str = date or _today_str()
+    content = generate_evening_briefing(date_str)
+    BRIEFINGS_DIR.mkdir(parents=True, exist_ok=True)
+    path = BRIEFINGS_DIR / f"{date_str}-evening.md"
     with open(path, "w") as f:
         f.write(content)
     return path

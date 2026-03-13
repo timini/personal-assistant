@@ -9,6 +9,7 @@ members = [
     "pa-finance",
     "pa-google",
     "pa-notion",
+    "pa-telegram",
     "pa-whatsapp",
 ]
 
@@ -126,6 +127,21 @@ requires-dist = [{ name = "pa-core", editable = "packages/pa-core" }]
 name = "pa-notion"
 version = "0.1.0"
 source = { editable = "packages/pa-notion" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pa-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pa-core", editable = "packages/pa-core" },
+]
+
+[[package]]
+name = "pa-telegram"
+version = "0.1.0"
+source = { editable = "packages/pa-telegram" }
 dependencies = [
     { name = "httpx" },
     { name = "pa-core" },

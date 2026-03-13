@@ -39,12 +39,19 @@ def _extract_task(page: dict) -> dict:
     elif "relation" in project_prop:
         project = f"({len(project_prop['relation'])} linked)"
 
+    # Extract due date
+    due_prop = props.get("Due Date", {})
+    due_date = ""
+    if "date" in due_prop and due_prop["date"]:
+        due_date = due_prop["date"].get("start", "")
+
     return {
         "id": page["id"],
         "title": title,
         "status": status,
         "priority": priority,
         "project": project,
+        "due_date": due_date,
         "url": page.get("url", ""),
     }
 

@@ -13,7 +13,7 @@ DAILY_DIR = PA_ROOT / "activity" / "daily"
 # One session ID per process — groups events from a single Claude session
 _SESSION_ID = uuid.uuid4().hex[:8]
 
-CATEGORIES = {"email", "task", "calendar", "info", "other"}
+CATEGORIES = {"email", "task", "calendar", "info", "wellness", "habit", "other"}
 
 
 def _today_str() -> str:
