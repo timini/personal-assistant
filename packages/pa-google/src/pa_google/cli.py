@@ -74,6 +74,15 @@ def cmd_calendar(args):
         sys.exit(1)
 
 
+def cmd_backup(args):
+    """Backup personal files to Google Drive."""
+    from pa_google.drive import run_backup
+    result = run_backup(keep=args.keep)
+    print(f"Backup uploaded: {result['filename']}")
+    if result.get("deleted"):
+        print(f"Cleaned up {len(result['deleted'])} old backup(s)")
+
+
 def main():
     parser = argparse.ArgumentParser(prog="pa-google", description="PA Google Workspace integration")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -89,6 +98,9 @@ def main():
     cal_p.add_argument("--days", type=int, default=0, help="Show N days ahead (0 = today only)")
     cal_p.add_argument("--json", action="store_true")
 
+    backup_p = sub.add_parser("backup", help="Backup personal files to Google Drive")
+    backup_p.add_argument("--keep", type=int, default=7, help="Number of backups to keep")
+
     args = parser.parse_args()
 
     if args.command == "briefing":
@@ -97,6 +109,8 @@ def main():
         cmd_emails(args)
     elif args.command == "calendar":
         cmd_calendar(args)
+    elif args.command == "backup":
+        cmd_backup(args)
 
 
 if __name__ == "__main__":

@@ -35,6 +35,26 @@ def get_inbox_emails(limit: int = 50, unread_only: bool = False) -> list[dict]:
     return detailed
 
 
+def archive_email(message_id: str) -> None:
+    """Archive an email by removing INBOX label at the thread level.
+
+    IMPORTANT: Must use threads.modify, not messages.modify — Gmail UI
+    shows threads, and archiving individual messages doesn't remove the
+    thread from inbox if other messages in the thread still have INBOX.
+    """
+    # Get the thread ID from the message
+    msg = run_gws("gmail", "users.messages", "get", {
+        "userId": "me",
+        "id": message_id,
+        "format": "minimal",
+    })
+    thread_id = msg["threadId"]
+    run_gws("gmail", "users.threads", "modify", {
+        "userId": "me",
+        "id": thread_id,
+    }, body={"removeLabelIds": ["INBOX", "UNREAD"]})
+
+
 def get_email_body(message_id: str) -> str:
     """Get the full body of an email."""
     import base64

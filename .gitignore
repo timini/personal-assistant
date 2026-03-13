@@ -1,6 +1,7 @@
 # User-specific secrets and config
 .env
 user.yaml
+user-instructions.md
 client_secret*.json
 
 # Activity logs (per-user history)

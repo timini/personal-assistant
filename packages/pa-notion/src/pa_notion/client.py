@@ -21,7 +21,7 @@ class NotionClient:
 
     def _request(self, method: str, path: str, **kwargs) -> dict:
         url = f"{NOTION_API_BASE}{path}"
-        with httpx.Client() as client:
+        with httpx.Client(timeout=30) as client:
             resp = client.request(method, url, headers=self.headers, **kwargs)
             resp.raise_for_status()
             return resp.json()

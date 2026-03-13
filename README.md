@@ -6,6 +6,9 @@ A modular personal assistant built as a Python uv workspace. Each integration is
 
 - **Notion** — Task management (list, add, update) via the Notion API
 - **Google Workspace** — Email and calendar access via the `gws` CLI
+- **Google Drive backup** — Automatic backup of personal/gitignored files to Drive
+- **Daily briefing** — Generated daily summary from calendar, tasks, and event logs
+- **Event logging** — Per-day JSON event log tracking actions across all integrations
 - **Plugin architecture** — Add new integrations by dropping in a package
 - **Activity logs** — Per-plugin event tracking so your AI assistant maintains context across sessions
 - **No hardcoded config** — All user details come from `.env` and `user.yaml`, generated at setup
@@ -51,9 +54,20 @@ uv run pa-google briefing              # Morning briefing: calendar + unread ema
 uv run pa-google emails --unread --limit 5
 uv run pa-google calendar              # Today's events
 uv run pa-google calendar --days 7     # Next 7 days
+
+# Backup personal files to Google Drive
+uv run pa-google backup                # Upload tarball to PA-Backups folder
+uv run pa-google backup --keep 10      # Keep 10 backups instead of default 7
+
+# Daily briefing & event logging
+uv run pa-core briefing                # Print today's daily briefing
+uv run pa-core briefing --save         # Save briefing to activity/briefings/
+uv run pa-core briefing --save --backup  # Save briefing + backup to Drive
+uv run pa-core log email archived "Archived 5 newsletters"
+uv run pa-core log task created "Created task: Pay bill" --project "Admin / Finance"
 ```
 
-All commands support `--json` for machine-readable output.
+Most list commands support `--json` for machine-readable output.
 
 ## Project Structure
 
