@@ -1,0 +1,24 @@
+# User-specific secrets and config
+.env
+user.yaml
+client_secret*.json
+
+# Activity logs (per-user history)
+activity/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store

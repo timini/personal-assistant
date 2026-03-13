@@ -1,0 +1,16 @@
+[project]
+name = "pa-finance"
+version = "0.1.0"
+description = "PA Finance integration — Lunchflow open banking (future)"
+requires-python = ">=3.11"
+dependencies = ["pa-core"]
+
+[project.scripts]
+pa-finance = "pa_finance.cli:main"
+
+[tool.uv.sources]
+pa-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

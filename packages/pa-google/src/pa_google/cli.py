@@ -1,0 +1,103 @@
+"""CLI entry point for pa-google."""
+
+import argparse
+import json
+import sys
+
+from pa_google.gmail import get_unread_emails
+from pa_google.calendar import get_todays_events, get_upcoming_events
+
+
+def cmd_briefing(args):
+    """Generate a morning briefing: today's events + unread emails."""
+    print("=== Calendar: Today ===\n")
+    try:
+        events = get_todays_events()
+        if events:
+            for e in events:
+                time_str = e["start"].split("T")[1][:5] if "T" in e["start"] else "all-day"
+                print(f"  {time_str}  {e['summary']}")
+        else:
+            print("  No events today.")
+    except Exception as e:
+        print(f"  Error fetching calendar: {e}", file=sys.stderr)
+
+    print("\n=== Unread Emails ===\n")
+    try:
+        emails = get_unread_emails(limit=10)
+        if emails:
+            for em in emails:
+                print(f"  From: {em['from']}")
+                print(f"  Subject: {em['subject']}")
+                print(f"  {em['snippet'][:100]}")
+                print()
+        else:
+            print("  No unread emails.")
+    except Exception as e:
+        print(f"  Error fetching emails: {e}", file=sys.stderr)
+
+
+def cmd_emails(args):
+    """List emails (unread by default)."""
+    try:
+        emails = get_unread_emails(limit=args.limit)
+        if args.json:
+            print(json.dumps(emails, indent=2))
+        else:
+            for em in emails:
+                print(f"From: {em['from']}")
+                print(f"Subject: {em['subject']}")
+                print(f"Date: {em['date']}")
+                print(f"Snippet: {em['snippet'][:120]}")
+                print(f"ID: {em['id']}")
+                print()
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_calendar(args):
+    """Show calendar events."""
+    try:
+        if args.days:
+            events = get_upcoming_events(days=args.days)
+        else:
+            events = get_todays_events()
+        if args.json:
+            print(json.dumps(events, indent=2))
+        else:
+            for e in events:
+                time_str = e["start"].split("T")[1][:5] if "T" in e["start"] else e["start"]
+                print(f"  {time_str}  {e['summary']}")
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="pa-google", description="PA Google Workspace integration")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("briefing", help="Morning briefing (calendar + emails)")
+
+    emails_p = sub.add_parser("emails", help="List emails")
+    emails_p.add_argument("--unread", action="store_true", default=True)
+    emails_p.add_argument("--limit", type=int, default=10)
+    emails_p.add_argument("--json", action="store_true")
+
+    cal_p = sub.add_parser("calendar", help="Show calendar events")
+    cal_p.add_argument("--days", type=int, default=0, help="Show N days ahead (0 = today only)")
+    cal_p.add_argument("--json", action="store_true")
+
+    args = parser.parse_args()
+
+    if args.command == "briefing":
+        cmd_briefing(args)
+    elif args.command == "emails":
+        cmd_emails(args)
+    elif args.command == "calendar":
+        cmd_calendar(args)
+
+
+if __name__ == "__main__":
+    main()
