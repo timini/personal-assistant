@@ -37,6 +37,9 @@ Sync also runs automatically during briefing generation (`pa-core briefing`), bu
 ### Google Task Lists
 Only the `🌈Today` list exists (ID: `MTEzODI3MTczMzYzODUyNzM2NDM6MDow`). The Next and Waiting lists were removed.
 
+### Orphaned task import
+If a Google Task has no Notion link (e.g. added directly on phone), sync will automatically create a matching Notion task and update the Google Task with the Notion link. Completed orphans are created as Done and removed from Google Tasks. Incomplete orphans stay on the phone with the Notion link added to notes. `[Project]` prefixes in titles are parsed back into the Notion project field.
+
 ### gws CLI gotcha
 The `showCompleted` and `showHidden` params must be strings (`"true"`) not booleans (`True`) — gws serialises booleans incorrectly.
 

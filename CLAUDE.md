@@ -305,6 +305,7 @@ When organising tasks:
 - When a task is completed in Notion, also mark it done in Google Tasks (or vice versa)
 - Google Tasks is the "active view" — Notion is the "full database"
 - **Auto-sync**: `sync_google_tasks()` runs automatically at the start of every briefing (morning + evening), syncing completed Google Tasks back to Notion and cleaning up the completed entries. Can also be run manually via `uv run pa-notion tasks sync`.
+- **Auto-import**: Tasks added directly to Google Tasks (without going through Notion first) are automatically imported to Notion during sync. The Google Task is updated with a Notion link so future syncs work correctly. Completed orphans are created as Done and deleted from Google Tasks. `[Project]` prefixes in titles are parsed into the Notion project field.
 
 **Notion page URL format:** `https://www.notion.so/<page_id_with_dashes_removed>`
 

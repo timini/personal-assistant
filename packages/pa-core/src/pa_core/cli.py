@@ -71,9 +71,19 @@ def cmd_checkin(args):
         from pa_core.daily_log import log_event
         synced = sync_google_tasks()
         for s in synced:
-            log_event("task", "completed", f"Completed: {s['title']} (synced from Google Tasks)")
+            if s.get("status") == "To Do":
+                log_event("task", "created", f"Imported from Google Tasks: {s['title']}")
+            else:
+                log_event("task", "completed", f"Completed: {s['title']} (synced from Google Tasks)")
         if synced:
-            print(f"  Synced {len(synced)} completed tasks from Google Tasks.", file=sys.stderr)
+            imported = [s for s in synced if s.get("status") == "To Do"]
+            completed = [s for s in synced if s.get("status") != "To Do"]
+            parts = []
+            if completed:
+                parts.append(f"synced {len(completed)} completed")
+            if imported:
+                parts.append(f"imported {len(imported)} new")
+            print(f"  Google Tasks: {', '.join(parts)}.", file=sys.stderr)
         else:
             print("  No tasks to sync.", file=sys.stderr)
     except Exception as exc:

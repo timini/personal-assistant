@@ -171,13 +171,16 @@ def _heads_up_section(events: list[dict]) -> list[str]:
 
 
 def _sync_google_tasks():
-    """Sync completed Google Tasks back to Notion, logging each as a win."""
+    """Sync Google Tasks with Notion: import orphans and sync completions."""
     try:
         from pa_notion.tasks import sync_google_tasks
         from pa_core.daily_log import log_event
         synced = sync_google_tasks()
         for s in synced:
-            log_event("task", "completed", f"Completed: {s['title']} (synced from Google Tasks)")
+            if s.get("status") == "To Do":
+                log_event("task", "created", f"Imported from Google Tasks: {s['title']}")
+            else:
+                log_event("task", "completed", f"Completed: {s['title']} (synced from Google Tasks)")
     except (ImportError, Exception):
         pass
 
