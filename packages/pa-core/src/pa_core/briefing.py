@@ -3,7 +3,7 @@
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from pa_core.config import PA_ROOT, get_user_config
+from pa_core.config import PA_ROOT, get_assistant_name, get_user_config
 from pa_core.daily_log import get_events, _today_str
 
 BRIEFINGS_DIR = PA_ROOT / "activity" / "briefings"
@@ -43,26 +43,33 @@ def _wellness_section(events: list[dict]) -> list[str]:
     return lines
 
 
+def _format_event(ev: dict) -> str:
+    """Format a single event with time and optional calendar label."""
+    time_str = ev.get("start", "")
+    if "T" in time_str:
+        time_str = time_str.split("T")[1][:5]
+    label = ev.get("calendar")
+    label_str = f" [{label}]" if label else ""
+    return f"- {time_str}{label_str} {ev.get('summary', 'No title')}"
+
+
 def _calendar_section(date_str: str) -> list[str]:
     """Build Calendar section."""
     lines = ["## Calendar\n"]
     try:
-        from pa_google.calendar import get_todays_events, get_upcoming_events
+        from pa_google.calendar import get_all_todays_events, get_all_upcoming_events
 
-        today_events = get_todays_events()
+        today_events = get_all_todays_events()
         if today_events:
             lines.append("### Today")
             for ev in today_events:
-                time_str = ev.get("start", "")
-                if "T" in time_str:
-                    time_str = time_str.split("T")[1][:5]
-                lines.append(f"- {time_str} {ev.get('summary', 'No title')}")
+                lines.append(_format_event(ev))
         else:
             lines.append("_No events today._")
 
         tomorrow_dt = datetime.strptime(date_str, "%Y-%m-%d") + timedelta(days=1)
         tomorrow_str = tomorrow_dt.strftime("%Y-%m-%d")
-        tomorrow_events = get_upcoming_events(days=2)
+        tomorrow_events = get_all_upcoming_events(days=2)
         tomorrow_only = [
             ev for ev in tomorrow_events
             if tomorrow_str in ev.get("start", "")
@@ -70,10 +77,7 @@ def _calendar_section(date_str: str) -> list[str]:
         if tomorrow_only:
             lines.append(f"\n### Tomorrow ({tomorrow_str})")
             for ev in tomorrow_only:
-                time_str = ev.get("start", "")
-                if "T" in time_str:
-                    time_str = time_str.split("T")[1][:5]
-                lines.append(f"- {time_str} {ev.get('summary', 'No title')}")
+                lines.append(_format_event(ev))
     except (ImportError, Exception) as exc:
         lines.append(f"_Calendar unavailable: {exc}_")
     lines.append("")
@@ -126,6 +130,15 @@ def _focus_section() -> list[str]:
     return lines
 
 
+def _format_links(event: dict) -> str:
+    """Format resource links from an event as inline markdown."""
+    links = event.get("links", {})
+    if not links:
+        return ""
+    parts = [f"[{label}]({url})" for label, url in links.items()]
+    return " — " + " | ".join(parts)
+
+
 def _wins_section(events: list[dict]) -> list[str]:
     """Build Wins section — only if there are completed actions."""
     completed = [e for e in events if e["action"] in ("archived", "completed", "resolved", "created")]
@@ -135,7 +148,8 @@ def _wins_section(events: list[dict]) -> list[str]:
     lines = ["## Wins So Far\n"]
     for e in completed:
         project_tag = f" [{e['project']}]" if e.get("project") else ""
-        lines.append(f"- **{e['action'].title()}**: {e['summary']}{project_tag}")
+        link_str = _format_links(e)
+        lines.append(f"- **{e['action'].title()}**: {e['summary']}{project_tag}{link_str}")
     lines.append("")
     return lines
 
@@ -150,18 +164,33 @@ def _heads_up_section(events: list[dict]) -> list[str]:
 
     lines = ["## Heads Up\n"]
     for e in items:
-        lines.append(f"- {e['summary']}")
+        link_str = _format_links(e)
+        lines.append(f"- {e['summary']}{link_str}")
     lines.append("")
     return lines
 
 
+def _sync_google_tasks():
+    """Sync completed Google Tasks back to Notion, logging each as a win."""
+    try:
+        from pa_notion.tasks import sync_google_tasks
+        from pa_core.daily_log import log_event
+        synced = sync_google_tasks()
+        for s in synced:
+            log_event("task", "completed", f"Completed: {s['title']} (synced from Google Tasks)")
+    except (ImportError, Exception):
+        pass
+
+
 def generate_briefing(date: str | None = None) -> str:
     """Generate a markdown daily briefing. Returns the markdown string."""
+    _sync_google_tasks()
     date_str = date or _today_str()
     events = get_events(date_str)
 
     sections: list[str] = []
-    sections.append(f"# Daily Briefing — {date_str}\n")
+    name = get_assistant_name()
+    sections.append(f"# {name} Daily Briefing — {date_str}\n")
 
     sections.extend(_wellness_section(events))
     sections.extend(_calendar_section(date_str))
@@ -188,22 +217,8 @@ def save_briefing(date: str | None = None) -> Path:
 
 def _streak_count(habit_name: str, date_str: str) -> int:
     """Count consecutive days a habit was completed going backwards from date (exclusive)."""
-    streak = 0
-    current = datetime.strptime(date_str, "%Y-%m-%d").date()
-    for _ in range(30):  # look back up to 30 days
-        current -= timedelta(days=1)
-        day_events = get_events(current.isoformat())
-        completed = any(
-            e["category"] == "habit"
-            and e["action"] == "completed"
-            and e["summary"] == habit_name
-            for e in day_events
-        )
-        if completed:
-            streak += 1
-        else:
-            break
-    return streak
+    from pa_core.context import streak_count
+    return streak_count(habit_name, date_str)
 
 
 def _habits_section(events: list[dict], date_str: str) -> list[str]:
@@ -284,7 +299,8 @@ def _reflections_section(events: list[dict]) -> list[str]:
         return []
     lines = ["## Reflections\n"]
     for e in items:
-        lines.append(f"- {e['summary']}")
+        link_str = _format_links(e)
+        lines.append(f"- {e['summary']}{link_str}")
     lines.append("")
     return lines
 
@@ -344,11 +360,13 @@ def _gratitude_section(events: list[dict]) -> list[str]:
 
 def generate_evening_briefing(date: str | None = None) -> str:
     """Generate a markdown evening briefing. Returns the markdown string."""
+    _sync_google_tasks()
     date_str = date or _today_str()
     events = get_events(date_str)
 
     sections: list[str] = []
-    sections.append(f"# Evening Briefing — {date_str}\n")
+    name = get_assistant_name()
+    sections.append(f"# {name} Evening Briefing — {date_str}\n")
 
     sections.extend(_wins_section(events))
     sections.extend(_habits_section(events, date_str))

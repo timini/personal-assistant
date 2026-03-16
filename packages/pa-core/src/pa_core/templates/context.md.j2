@@ -1,0 +1,90 @@
+# Today's Context — {{ now.display }}
+
+## Calendar
+{% if calendar %}
+{% for ev in calendar %}
+- {{ ev.time }}{{ " [" ~ ev.calendar ~ "]" if ev.calendar else "" }} {{ ev.summary }}
+{% endfor %}
+{% else %}
+_No events today._
+{% endif %}
+
+## Unread Emails ({{ emails | length }})
+{% if emails %}
+{% for em in emails %}
+- **{{ em.from }}**: {{ em.subject }}
+{% endfor %}
+{% else %}
+_Inbox zero!_
+{% endif %}
+
+## Urgent Tasks
+{% if tasks_urgent %}
+{% for t in tasks_urgent %}
+- {{ t.title }}{{ " — due " ~ t.due_date if t.due_date else "" }}{{ " [" ~ t.project ~ "]" if t.project else "" }}
+{% endfor %}
+{% else %}
+_No urgent tasks._
+{% endif %}
+
+## Due This Week
+{% if tasks_due_soon %}
+{% for t in tasks_due_soon %}
+- {{ "[" ~ t.priority ~ "] " if t.priority else "" }}{{ t.title }} — due {{ t.due_date }}{{ " [" ~ t.project ~ "]" if t.project else "" }}
+{% endfor %}
+{% else %}
+_Nothing due this week._
+{% endif %}
+
+## Completed Today
+{% if completed_today %}
+{% for e in completed_today %}
+- {{ e.summary }}
+{% endfor %}
+{% else %}
+_Nothing yet._
+{% endif %}
+
+## Completed Yesterday
+{% if completed_yesterday %}
+{% for e in completed_yesterday %}
+- {{ e.summary }}
+{% endfor %}
+{% else %}
+_Nothing logged._
+{% endif %}
+
+## Task Stats
+- Today: {{ stats.completed_today_count }} | Yesterday: {{ stats.completed_yesterday_count }}
+- Last 7 days: {{ stats.completed_7d_count }} (avg {{ "%.1f" | format(stats.avg_daily_7d) }}/day) | Last 30 days: {{ stats.completed_30d_count }} (avg {{ "%.1f" | format(stats.avg_daily_30d) }}/day)
+- Task streak: {{ stats.task_streak }} day{{ "s" if stats.task_streak != 1 else "" }} (consecutive days with at least 1 task completed)
+
+## Weather — {{ weather.location }}
+{% if weather.temperature is not none %}
+- {{ weather.description }} | {{ weather.temperature }}°C (feels like {{ weather.feels_like }}°C)
+- High: {{ weather.high }}°C | Low: {{ weather.low }}°C | Rain: {{ weather.rain_probability }}% | Wind: {{ weather.wind_speed }} km/h
+{% else %}
+_Weather unavailable._
+{% endif %}
+
+## Habits
+{% if habits %}
+{% for h in habits %}
+{% if h.status == "completed" %}
+- {{ h.emoji }} {{ h.name }} — streak: {{ h.streak }} day{{ "s" if h.streak != 1 else "" }}
+{% elif h.status == "skipped" %}
+- {{ h.name }} — skipped (streak reset)
+{% else %}
+- {{ h.name }} — not logged today
+{% endif %}
+{% endfor %}
+{% else %}
+_No habits configured._
+{% endif %}
+{% if errors %}
+
+## Errors
+{% for err in errors %}
+- {{ err }}
+{% endfor %}
+{% endif %}

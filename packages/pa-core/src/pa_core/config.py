@@ -48,6 +48,42 @@ def get_user_name() -> str:
     return get_user_config().get("name", "User")
 
 
+def get_assistant_name() -> str:
+    """Get the assistant's display name from user.yaml, defaulting to 'PA'."""
+    return get_user_config().get("assistant_name", "PA")
+
+
 def get_enabled_plugins() -> list[str]:
     """Return list of enabled plugin names."""
     return get_user_config().get("enabled_plugins", [])
+
+
+def get_now() -> dict:
+    """Return current date/time info formatted for session context.
+
+    Returns dict with keys: date, day, time, timezone, period (morning/afternoon/evening).
+    Always call this at the start of every session to determine the correct context.
+    """
+    from datetime import datetime
+    import zoneinfo
+
+    tz_name = get_user_config().get("timezone", "Europe/London")
+    tz = zoneinfo.ZoneInfo(tz_name)
+    now = datetime.now(tz)
+
+    hour = now.hour
+    if hour < 12:
+        period = "morning"
+    elif hour < 17:
+        period = "afternoon"
+    else:
+        period = "evening"
+
+    return {
+        "date": now.strftime("%Y-%m-%d"),
+        "day": now.strftime("%A"),
+        "time": now.strftime("%H:%M"),
+        "timezone": tz_name,
+        "period": period,
+        "display": now.strftime("%A %d %B %Y, %H:%M %Z"),
+    }

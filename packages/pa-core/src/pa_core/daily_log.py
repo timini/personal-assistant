@@ -46,8 +46,14 @@ def log_event(
     summary: str,
     details: dict | None = None,
     project: str | None = None,
+    links: dict[str, str] | None = None,
 ) -> dict:
-    """Append an event to today's daily log. Returns the event dict."""
+    """Append an event to today's daily log. Returns the event dict.
+
+    Args:
+        links: Optional dict of {label: url} for resources created/referenced.
+               e.g. {"event": "https://calendar.google.com/...", "task": "https://notion.so/..."}
+    """
     if category not in CATEGORIES:
         raise ValueError(f"Invalid category '{category}'. Must be one of: {CATEGORIES}")
 
@@ -60,6 +66,8 @@ def log_event(
         "details": details or {},
         "project": project,
     }
+    if links:
+        event["links"] = links
 
     data = _load_day()
     data["events"].append(event)

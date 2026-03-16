@@ -47,6 +47,16 @@ def cmd_briefing(args):
             print(f"Backup failed: {exc}", file=sys.stderr)
 
 
+def cmd_context(args):
+    from pa_core.context import get_today_context, render_context
+    import json
+    ctx = get_today_context()
+    if args.json:
+        print(json.dumps(ctx, indent=2, default=str))
+    else:
+        print(render_context(ctx))
+
+
 def cmd_log(args):
     from pa_core.daily_log import log_event
     event = log_event(
@@ -73,6 +83,10 @@ def main():
     bp.add_argument("--backup", action="store_true", help="Backup personal files after saving")
     bp.add_argument("--telegram", action="store_true", help="Send briefing to Telegram")
 
+    # context
+    cp = sub.add_parser("context", help="Today's full context (calendar + emails + tasks + habits + weather)")
+    cp.add_argument("--json", action="store_true", help="Output as JSON")
+
     # log
     lp = sub.add_parser("log", help="Log an event to today's daily log")
     lp.add_argument("category", help="Event category: email, task, calendar, info, other")
@@ -86,6 +100,8 @@ def main():
         cmd_setup(args)
     elif args.command == "briefing":
         cmd_briefing(args)
+    elif args.command == "context":
+        cmd_context(args)
     elif args.command == "log":
         cmd_log(args)
     else:

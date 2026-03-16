@@ -33,7 +33,10 @@ def cmd_briefing(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(prog="pa-telegram", description="PA Telegram notifications")
+    from pa_core.config import get_assistant_name
+
+    name = get_assistant_name()
+    parser = argparse.ArgumentParser(prog="pa-telegram", description=f"{name} Telegram notifications")
     sub = parser.add_subparsers(dest="command")
 
     # send

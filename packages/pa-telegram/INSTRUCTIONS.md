@@ -36,6 +36,73 @@ uv run pa-core briefing --save --backup --telegram  # Save + backup + send
    ```
 7. Test: `uv run pa-telegram send "Hello from PA!"`
 
+## Evening Briefing Flow (Interactive via Telegram)
+
+The evening briefing should be interactive — ask Tim about habits, gratitude, etc. via Telegram before generating the briefing.
+
+### Interim approach (until Telegram polling is built — see issue #9)
+
+1. **Send each habit question with inline keyboard buttons** — one question at a time:
+   ```bash
+   source $PA_ROOT/.env && curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "chat_id": "<chat_id>",
+       "text": "💪 Exercise today?",
+       "reply_markup": {
+         "inline_keyboard": [
+           [{"text": "Yes — smashed it", "callback_data": "exercise_yes"}],
+           [{"text": "Light / walk", "callback_data": "exercise_light"}],
+           [{"text": "Nope", "callback_data": "exercise_no"}]
+         ]
+       }
+     }'
+   ```
+   Use inline keyboards for ALL check-in questions — never send plain text multiple choice. Tim should be able to tap buttons, not type.
+
+2. **Wait for Tim to tap a button** — use `sleep` or ask Tim to confirm in terminal. Read the callback:
+   ```bash
+   curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=-1" | python3 -c "
+   import json,sys
+   results = json.load(sys.stdin).get('result',[])
+   for r in results:
+       cb = r.get('callback_query',{})
+       if cb: print(cb.get('data',''))
+       msg = r.get('message',{})
+       if msg: print(msg.get('text',''))
+   "
+   ```
+
+3. **Send next question** (reading, meditation, energy, gratitude) — each with its own inline keyboard
+
+4. **For gratitude** — send a text question (no buttons, free text reply):
+   ```bash
+   uv run pa-telegram send "What's one thing you're grateful for today?"
+   ```
+
+5. **Log all responses** using `pa_core.daily_log.log_event()`
+
+6. **Generate and send the evening briefing** (now including habit + gratitude data):
+   ```bash
+   uv run pa-core briefing --evening --save --telegram
+   ```
+
+### Button format for each habit
+
+Send questions one at a time. Standard button layouts:
+
+- **Exercise:** "Yes — smashed it" / "Light / walk" / "Nope"
+- **Reading:** "Yes" / "No"
+- **Meditation:** "Yes" / "No"
+- **Energy:** "Good" / "Ok" / "Wiped"
+- **Gratitude:** free text reply (no buttons)
+
+### Key rules
+- Always do the check-in BEFORE generating the briefing, so habit/gratitude data is included
+- Don't skip the check-in — it's the whole point of the evening flow
+- If Tim doesn't reply within 5 mins, send a gentle nudge, then generate without if still no reply
+- Log everything — habits completed, skipped, or not logged
+
 ## Gotchas
 - You MUST send `/start` to the bot before it can message you — Telegram requires this
 - Telegram Markdown is a subset: no headings, no nested formatting. `_format_for_telegram()` handles conversion.

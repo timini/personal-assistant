@@ -4,7 +4,7 @@ import argparse
 import json
 import sys
 
-from pa_notion.tasks import list_tasks, add_task, update_task
+from pa_notion.tasks import list_tasks, add_task, update_task, promote_task, sync_google_tasks
 
 
 def cmd_tasks_list(args):
@@ -71,6 +71,41 @@ def cmd_tasks_update(args):
         sys.exit(1)
 
 
+def cmd_tasks_sync(args):
+    """Sync completed Google Tasks back to Notion."""
+    try:
+        synced = sync_google_tasks()
+        if args.json:
+            print(json.dumps(synced, indent=2))
+        elif not synced:
+            print("No completed Google Tasks to sync.")
+        else:
+            print(f"Synced {len(synced)} task(s) to Notion:")
+            for s in synced:
+                print(f"  Done: {s['title']} (from {s['list']} list)")
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_tasks_promote(args):
+    """Promote a task to Google Tasks."""
+    try:
+        result = promote_task(args.id, list_name=args.tasklist, due=args.due)
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            task = result["notion"]
+            print(f"Promoted: {task['title']}")
+            print(f"  Notion: {result['notion_url']}")
+            print(f"  Google Tasks list: {args.tasklist}")
+            if task.get("due_date") or args.due:
+                print(f"  Due: {args.due or task['due_date']}")
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(prog="pa-notion", description="PA Notion integration")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -102,6 +137,17 @@ def main():
     update_p.add_argument("--project", help="New project")
     update_p.add_argument("--json", action="store_true")
 
+    # tasks promote
+    promote_p = tasks_sub.add_parser("promote", help="Promote task to Google Tasks")
+    promote_p.add_argument("id", help="Notion task ID")
+    promote_p.add_argument("--list", choices=["today", "next", "waiting"], default="today", dest="tasklist")
+    promote_p.add_argument("--due", help="Due date (YYYY-MM-DD)")
+    promote_p.add_argument("--json", action="store_true")
+
+    # tasks sync
+    sync_p = tasks_sub.add_parser("sync", help="Sync completed Google Tasks back to Notion")
+    sync_p.add_argument("--json", action="store_true")
+
     args = parser.parse_args()
 
     if args.command == "tasks":
@@ -111,6 +157,10 @@ def main():
             cmd_tasks_add(args)
         elif args.action == "update":
             cmd_tasks_update(args)
+        elif args.action == "promote":
+            cmd_tasks_promote(args)
+        elif args.action == "sync":
+            cmd_tasks_sync(args)
 
 
 if __name__ == "__main__":

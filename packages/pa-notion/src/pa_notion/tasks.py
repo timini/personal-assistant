@@ -1,5 +1,8 @@
 """Task CRUD operations against the Notion tasks database."""
 
+import re
+
+from pa_core.cli_runner import run_gws
 from pa_core.config import get_secret
 from pa_notion.client import NotionClient
 
@@ -91,6 +94,40 @@ def add_task(title: str, project: str = "", priority: str = "", notes: str = "")
     return _extract_task(page)
 
 
+GOOGLE_TASK_LISTS = {
+    "today": "MTEzODI3MTczMzYzODUyNzM2NDM6MDow",
+}
+
+
+def get_task(task_id: str) -> dict:
+    """Fetch a single task by ID."""
+    client = NotionClient()
+    page = client.get_page(task_id)
+    return _extract_task(page)
+
+
+def promote_task(task_id: str, list_name: str = "today", due: str | None = None) -> dict:
+    """Promote a Notion task to Google Tasks with a link back."""
+    task = get_task(task_id)
+    notion_url = f"https://www.notion.so/{task_id.replace('-', '')}"
+
+    tasklist_id = GOOGLE_TASK_LISTS[list_name]
+
+    title = task["title"]
+    if task.get("project"):
+        title = f"[{task['project']}] {title}"
+
+    body: dict = {"title": title, "notes": notion_url}
+    due_date = due or task.get("due_date")
+    if due_date:
+        body["due"] = f"{due_date}T00:00:00Z"
+
+    result = run_gws("tasks", "tasks", "insert",
+                     params={"tasklist": tasklist_id},
+                     body=body)
+    return {"notion": task, "google_task": result, "notion_url": notion_url}
+
+
 def update_task(task_id: str, **updates) -> dict:
     """Update task properties. Accepts: title, status, priority, project."""
     client = NotionClient()
@@ -107,3 +144,42 @@ def update_task(task_id: str, **updates) -> dict:
 
     page = client.update_page(task_id, properties)
     return _extract_task(page)
+
+
+def _notion_id_from_url(url: str) -> str | None:
+    """Extract Notion page ID from URL, re-inserting dashes."""
+    match = re.search(r"notion\.so/(?:[^/]+-)?([a-f0-9]{32})$", url)
+    if not match:
+        return None
+    hex_id = match.group(1)
+    return f"{hex_id[:8]}-{hex_id[8:12]}-{hex_id[12:16]}-{hex_id[16:20]}-{hex_id[20:]}"
+
+
+def sync_google_tasks() -> list[dict]:
+    """Sync completed Google Tasks back to Notion. Returns list of synced tasks."""
+    synced = []
+    for list_name, tasklist_id in GOOGLE_TASK_LISTS.items():
+        tasks = run_gws("tasks", "tasks", "list",
+                        params={"tasklist": tasklist_id, "showCompleted": "true", "showHidden": "true"})
+        if not tasks or "items" not in tasks:
+            continue
+        for gt in tasks["items"]:
+            if gt.get("status") != "completed":
+                continue
+            notes = gt.get("notes", "")
+            notion_id = _notion_id_from_url(notes)
+            if not notion_id:
+                continue
+            try:
+                notion_task = update_task(notion_id, status="Done")
+                synced.append({
+                    "title": notion_task["title"],
+                    "notion_id": notion_id,
+                    "google_task_id": gt["id"],
+                    "list": list_name,
+                })
+                run_gws("tasks", "tasks", "delete",
+                        params={"tasklist": tasklist_id, "task": gt["id"]})
+            except Exception:
+                pass  # Skip tasks that fail (e.g. already deleted from Notion)
+    return synced

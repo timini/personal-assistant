@@ -28,5 +28,39 @@ parent_id = client.create_page(db_id, parent_props)["id"]
 client.update_page(child_id, {"Parent Task": {"relation": [{"id": parent_id}]}})
 ```
 
+## Google Tasks Sync
+
+**ALWAYS sync Google Tasks back to Notion at the start of every session** — run `uv run pa-notion tasks sync` before doing anything else. This picks up tasks Tim completed on his phone and marks them Done in Notion. Without this, the task list is stale.
+
+Sync also runs automatically during briefing generation (`pa-core briefing`), but that's not sufficient — sync must happen at session start regardless of whether a briefing is generated.
+
+### Google Task Lists
+Only the `🌈Today` list exists (ID: `MTEzODI3MTczMzYzODUyNzM2NDM6MDow`). The Next and Waiting lists were removed.
+
+### gws CLI gotcha
+The `showCompleted` and `showHidden` params must be strings (`"true"`) not booleans (`True`) — gws serialises booleans incorrectly.
+
+## Embedding Images from Google Drive
+
+Notion image blocks require a publicly accessible URL. Private Google Drive files won't render via `drive.google.com/uc?id=...`. Instead:
+
+1. Get the file's `thumbnailLink` via `gws drive files get --params '{"fileId": "...", "fields": "thumbnailLink"}'`
+2. Replace the `=s220` size suffix with `=s1600` (or any desired resolution)
+3. Use that `lh3.googleusercontent.com` URL as the external image URL in Notion
+
+```python
+# Example: add image block to a Notion page
+{
+    "type": "image",
+    "image": {
+        "type": "external",
+        "external": {"url": "https://lh3.googleusercontent.com/drive-storage/...=s1600"},
+        "caption": [{"type": "text", "text": {"content": "description"}}]
+    }
+}
+```
+
+The `gws drive files download` command does NOT reliably work for binary files. Always use the thumbnail URL approach for embedding in Notion.
+
 ## Project Pages
 Each project has a dedicated page in Notion with task checklists, context, and reference material. When working on a project, check and update its page.

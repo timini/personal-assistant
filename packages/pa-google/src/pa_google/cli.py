@@ -5,18 +5,29 @@ import json
 import sys
 
 from pa_google.gmail import get_inbox_emails
-from pa_google.calendar import get_todays_events, get_upcoming_events
+from pa_google.calendar import (
+    get_all_todays_events,
+    get_all_upcoming_events,
+    check_calendars,
+)
+
+
+def _format_event(e: dict) -> str:
+    """Format event for display with optional calendar label."""
+    time_str = e["start"].split("T")[1][:5] if "T" in e["start"] else e["start"]
+    label = e.get("calendar")
+    label_str = f" [{label}]" if label else ""
+    return f"  {time_str}{label_str}  {e['summary']}"
 
 
 def cmd_briefing(args):
     """Generate a morning briefing: today's events + unread emails."""
     print("=== Calendar: Today ===\n")
     try:
-        events = get_todays_events()
+        events = get_all_todays_events()
         if events:
             for e in events:
-                time_str = e["start"].split("T")[1][:5] if "T" in e["start"] else "all-day"
-                print(f"  {time_str}  {e['summary']}")
+                print(_format_event(e))
         else:
             print("  No events today.")
     except Exception as e:
@@ -60,15 +71,29 @@ def cmd_calendar(args):
     """Show calendar events."""
     try:
         if args.days:
-            events = get_upcoming_events(days=args.days)
+            events = get_all_upcoming_events(days=args.days)
         else:
-            events = get_todays_events()
+            events = get_all_todays_events()
         if args.json:
             print(json.dumps(events, indent=2))
         else:
             for e in events:
-                time_str = e["start"].split("T")[1][:5] if "T" in e["start"] else e["start"]
-                print(f"  {time_str}  {e['summary']}")
+                print(_format_event(e))
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_calendar_check(args):
+    """Verify all configured calendars are accessible."""
+    try:
+        results = check_calendars()
+        for cal in results:
+            label = cal.get("label") or "(primary)"
+            status = cal["status"]
+            count = cal["event_count"]
+            print(f"  {label:12s}  {status}  ({count} events today)")
+            print(f"               ID: {cal['id']}")
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -98,6 +123,8 @@ def main():
     cal_p.add_argument("--days", type=int, default=0, help="Show N days ahead (0 = today only)")
     cal_p.add_argument("--json", action="store_true")
 
+    sub.add_parser("calendar-check", help="Verify all configured calendars are accessible")
+
     backup_p = sub.add_parser("backup", help="Backup personal files to Google Drive")
     backup_p.add_argument("--keep", type=int, default=7, help="Number of backups to keep")
 
@@ -109,6 +136,8 @@ def main():
         cmd_emails(args)
     elif args.command == "calendar":
         cmd_calendar(args)
+    elif args.command == "calendar-check":
+        cmd_calendar_check(args)
     elif args.command == "backup":
         cmd_backup(args)
 
