@@ -56,7 +56,13 @@ uv run pa-google calendar-check                # Verify all configured calendars
 uv run pa-google backup                        # Backup personal files to Google Drive
 uv run pa-google backup --keep 10              # Keep 10 backups instead of default 7
 
-# Session context
+# Daily check-in (single entry point — does everything)
+uv run pa-core checkin                         # Sync tasks + backup + full context + coaching prompt
+uv run pa-core checkin --evening               # Evening session (habits, gratitude, tomorrow preview)
+uv run pa-core checkin --no-backup             # Skip Google Drive backup
+uv run pa-core checkin --json                  # JSON context output (no coaching prompt)
+
+# Session context (context only, no sync/backup)
 uv run pa-core context                         # Today's full context (calendar + emails + tasks + habits + weather)
 uv run pa-core context --json                  # JSON output
 
@@ -314,19 +320,15 @@ gws tasks tasks patch --params '{"tasklist": "MTEzODI3MTczMzYzODUyNzM2NDM6MDow",
 ```
 
 ### Daily
-1. **ALWAYS sync Google Tasks first**: `uv run pa-notion tasks sync` — picks up tasks completed on Tim's phone
-2. Run email triage (above)
-3. Check calendar with `pa-google calendar` for today's context
-4. Review open tasks with `pa-notion tasks list --status "To Do"` and suggest priorities
-5. Save briefing with backup and send to Telegram: `pa-core briefing --save --backup --telegram`
+1. **Run `uv run pa-core checkin`** — syncs Google Tasks, backs up to Drive, fetches full context
+2. Follow the coaching prompt output: wellness check-in, then present tasks matched to energy
+3. Run email triage (above)
+4. At end of session: `uv run pa-core briefing --save --telegram`
 
 ### Evening
-1. **ALWAYS sync Google Tasks first**: `uv run pa-notion tasks sync`
-2. Habit check-in — go through configured habits from user.yaml, ask about each
-2. Ask about freeform wins — anything positive done today
-3. Gratitude — ask "What's one thing you're grateful for today?"
-4. Preview tomorrow's top 3 tasks, confirm with Tim
-5. Generate and save evening briefing: `pa-core briefing --evening --save --telegram`
+1. **Run `uv run pa-core checkin --evening`** — syncs tasks, backs up, fetches context
+2. Follow the coaching prompt: habit check-in, freeform wins, gratitude, tomorrow preview
+3. Generate and save evening briefing: `uv run pa-core briefing --evening --save --telegram`
 
 ### Weekly
 1. Full task review — check for stale, overdue, or completed tasks
