@@ -6,6 +6,16 @@ A personal assistant CLI toolkit built as a Python uv workspace monorepo. Each i
 
 All user-specific config comes from `.env` (secrets) and `user.yaml` (non-secret config). Both are gitignored. No hardcoded user details in code.
 
+## IMPORTANT: Red-Green TDD for All Development
+
+All code changes MUST follow red-green TDD:
+
+1. **Red** — Write a failing test first that defines the expected behaviour
+2. **Green** — Write the minimum code to make the test pass
+3. **Refactor** — Clean up while keeping tests green
+
+Run tests with `uv run pytest` (or `uv run pytest packages/pa-<name>/` for a specific package). Never skip the red step — if you can't write a failing test first, clarify the requirement before coding.
+
 ## IMPORTANT: Check Date/Time FIRST
 
 **At the very start of every session**, call `get_now()` to get the actual current date, day, and time. Never rely on system-provided date context or assumptions.

@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: tests-with-coverage
+        name: Run tests with 90% coverage threshold
+        entry: env COVERAGE_FILE=/tmp/.pa-coverage uv run --all-packages python -m pytest --cov=pa_telegram --cov=pa_core.context --cov=pa_core.cli --cov-report=term-missing --cov-fail-under=90 -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
