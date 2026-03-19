@@ -13,9 +13,21 @@ Deliver briefings and notifications to Tim's phone via Telegram Bot API.
 ## CLI Commands
 ```bash
 uv run pa-telegram send "Hello world"          # Send arbitrary message
+uv run pa-telegram messages                    # Show new messages sent to the bot
+uv run pa-telegram messages --json             # JSON output
+uv run pa-telegram messages --ack              # Acknowledge after reading
 uv run pa-telegram briefing                     # Send today's briefing
 uv run pa-telegram briefing --date 2026-03-12   # Send specific date's briefing
 ```
+
+## Reading Messages (getUpdates)
+
+The bot reads incoming messages via Telegram's `getUpdates` long-polling endpoint.
+
+- **Offset tracking**: The last acknowledged `update_id + 1` is stored in `activity/.telegram_offset`. Each `getUpdates` call passes this offset so only new messages are returned.
+- **Two-phase design**: `get_messages()` fetches without acknowledging. `acknowledge_messages()` writes the offset. This means messages aren't lost if the process crashes between fetch and display.
+- **Chat filtering**: Only messages from the configured `telegram.chat_id` are returned.
+- **Auto-acknowledge**: `pa-core checkin` and `pa-core context` automatically acknowledge messages after displaying them. Use `pa-telegram messages` (without `--ack`) for read-only inspection.
 
 Also available via pa-core:
 ```bash

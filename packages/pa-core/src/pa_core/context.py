@@ -298,6 +298,14 @@ def get_today_context() -> dict:
         habits = []
         errors.append(f"Habits: {exc}")
 
+    # Telegram messages
+    try:
+        from pa_telegram.client import get_messages
+        telegram_messages = get_messages()
+    except Exception as exc:
+        telegram_messages = []
+        errors.append(f"Telegram: {exc}")
+
     # Weather
     try:
         weather = _fetch_weather()
@@ -316,6 +324,7 @@ def get_today_context() -> dict:
         "completed_today": completed_today,
         "completed_yesterday": completed_yesterday,
         "stats": stats,
+        "telegram_messages": telegram_messages,
         "habits": habits,
         "weather": weather,
         "errors": errors,

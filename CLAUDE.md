@@ -45,6 +45,11 @@ uv run pa-notion tasks promote <id>                # Promote to Google Tasks "To
 uv run pa-notion tasks promote <id> --due 2026-03-14  # With explicit due date
 uv run pa-notion tasks sync                    # Sync completed Google Tasks → Notion (auto-runs during briefings)
 
+# Notion heatmap
+uv run pa-notion heatmap                       # GitHub-style activity heatmap on Notion
+uv run pa-notion heatmap --weeks 24            # Show 24 weeks of history
+uv run pa-notion heatmap --page <id>           # Write to specific page
+
 # Google Workspace
 uv run pa-google briefing                      # Morning briefing (calendar + inbox emails)
 uv run pa-google emails                        # All inbox emails (default: all, not just unread)
@@ -67,25 +72,34 @@ uv run pa-core context                         # Today's full context (calendar 
 uv run pa-core context --json                  # JSON output
 
 # Daily briefing & event logging
-uv run pa-core briefing                        # Print today's daily briefing
-uv run pa-core briefing --save                 # Save briefing to activity/briefings/
-uv run pa-core briefing --save --backup        # Save briefing + backup personal files to Drive
-uv run pa-core briefing --save --backup --telegram  # Save + backup + send to Telegram
+uv run pa-core briefing                        # Print today's daily briefing (+ backup)
+uv run pa-core briefing --save                 # Save briefing to activity/briefings/ (+ backup)
+uv run pa-core briefing --save --no-backup     # Save briefing, skip backup
+uv run pa-core briefing --save --telegram      # Save + backup + send to Telegram
 uv run pa-core briefing --date 2026-03-12      # Briefing for a specific date
 uv run pa-core briefing --evening              # Evening briefing (wins, habits, tomorrow focus)
-uv run pa-core briefing --evening --save       # Save evening briefing to activity/briefings/
-uv run pa-core briefing --evening --save --telegram  # Save + send evening briefing to Telegram
+uv run pa-core briefing --evening --save       # Save evening briefing to activity/briefings/ (+ backup)
+uv run pa-core briefing --evening --save --telegram  # Save + backup + send evening briefing to Telegram
 uv run pa-core log email archived "Archived 5 newsletters"
 uv run pa-core log task created "Created task: Pay credit card" --project "Admin / Finance"
 
 # Setup
 uv run pa-core setup                           # Interactive first-run onboarding
 
-# Telegram notifications
+# Telegram notifications & messages
 uv run pa-telegram send "Hello world"          # Send arbitrary message
+uv run pa-telegram messages                    # Show new messages sent to the bot
+uv run pa-telegram messages --json             # JSON output
+uv run pa-telegram messages --ack              # Acknowledge after reading
 uv run pa-telegram briefing                     # Send today's briefing to Telegram
 uv run pa-telegram briefing --evening           # Send evening briefing to Telegram
 uv run pa-telegram briefing --date 2026-03-12   # Send specific date's briefing
+
+# eBay search
+uv run pa-ebay search "vintage bell tent"               # Basic search
+uv run pa-ebay search "vintage bell tent" --condition used --sort price --limit 20
+uv run pa-ebay search "vintage bell tent" --min-price 50 --max-price 500
+uv run pa-ebay search "vintage bell tent" --uk-only --json  # JSON output
 
 # Stubs (not yet implemented)
 uv run pa-whatsapp
@@ -111,6 +125,7 @@ PA/
 │   ├── pa-google/               # Google Workspace (wraps gws CLI)
 │   ├── pa-notion/               # Notion (httpx API client)
 │   ├── pa-telegram/             # Telegram (notifications & briefings)
+│   ├── pa-ebay/                 # eBay (Browse API search)
 │   ├── pa-whatsapp/             # WhatsApp (stub)
 │   └── pa-finance/              # Finance/Lunchflow (stub)
 └── scripts/
@@ -141,6 +156,8 @@ Shared utilities — NO integration-specific code. If core is broken, everything
 
 ### pa-notion
 **Goal: Single source of truth for all tasks and commitments.** Every actionable item — from emails, conversations, or ad-hoc requests — should end up as a Notion task with the right project, priority, and status. Claude should keep this list current: close completed tasks, escalate overdue ones, and ensure nothing falls through the cracks.
+
+**Notion is the knowledge base.** Always keep task Notes up to date with the current state of play — decisions made, emails sent/received, options discussed, draft content, and next steps. When working on a task that involves conversations, email threads, or multi-step processes, update the Notes field so anyone picking it up can see what's happened and what to do next. Never leave a task you've worked on without updating its notes.
 - `client.py` — `NotionClient` class: query, create, update pages
 - `tasks.py` — `list_tasks()`, `add_task()`, `update_task()` against NOTION_TASKS_DB_ID
 - `cli.py` — CLI entry point with `tasks list|add|update` commands
@@ -157,9 +174,14 @@ client.update_page(child_id, {"Parent Task": {"relation": [{"id": parent_id}]}})
 ```
 
 ### pa-telegram
-**Goal: Deliver briefings and notifications to Tim's phone.** Outbound-only — sends daily briefings and ad-hoc messages via Telegram Bot API. Uses plain `httpx` against `api.telegram.org`, no heavy dependencies.
-- `client.py` — `send_message()`, `send_briefing()`, `_format_for_telegram()`
-- `cli.py` — CLI entry point with `send` and `briefing` subcommands
+**Goal: Deliver briefings and notifications to Tim's phone, and surface incoming messages.** Sends daily briefings and ad-hoc messages, and reads messages Tim sends to the bot (e.g. reminders, notes). Uses plain `httpx` against `api.telegram.org`, no heavy dependencies.
+- `client.py` — `send_message()`, `send_briefing()`, `get_messages()`, `acknowledge_messages()`, `_format_for_telegram()`
+- `cli.py` — CLI entry point with `send`, `messages`, and `briefing` subcommands
+
+### pa-ebay
+**Goal: Search and price research.** Programmatic eBay search for comparing listings, checking prices, and finding specific items. Uses the Browse API with client credentials OAuth (no user auth needed). Defaults to UK marketplace.
+- `client.py` — `search()` function with filters (condition, price range, sort, UK-only), OAuth token caching
+- `cli.py` — CLI entry point with `search` subcommand, text and JSON output
 
 ### pa-whatsapp (stub)
 **Goal: Surface and act on important messages.** WhatsApp is a high-noise channel. The goal is to flag messages that need a response or action, and ignore the rest. Not yet implemented — needs WhatsApp API research.
@@ -257,15 +279,23 @@ At end of session or on request: `uv run pa-core briefing`
 ## Suggested Workflows
 
 ### Email triage (Inbox Zero)
+
+> **Principle: No email exists in isolation.** Always check if an email relates to something already tracked in Notion before deciding how to handle it. Extract every date, deadline, link, and action item — don't leave value on the table.
+
 1. Fetch ALL inbox emails with `uv run pa-google emails` (gets read + unread, not just unread)
-2. For each email, decide immediately:
-   - **Noise** (newsletters, notifications, delivery updates) → archive
+2. For each email, **cross-reference against existing Notion tasks and projects**:
+   - Search Notion tasks for related keywords (people, projects, events mentioned in the email)
+   - If a matching task/project exists, treat this email as **context for that task** — not as a standalone item
+   - Extract all actionable information: dates/events → create calendar events, deadlines → update task due dates, links → add to task notes
+   - Update the existing Notion task with any new info extracted from the email
+3. **Then** categorise and act — but apply the 4 buckets **after** cross-referencing. An email that looks like "just info" on its own may be critical context for an existing task:
+   - **Noise** (newsletters, notifications, delivery updates with no relevance to any task) → archive
    - **Quick action** (pay a bill, RSVP, short reply) → do it now, then archive
    - **Needs follow-up** → create a Notion task with context, then archive
    - **Time-sensitive** → flag to user, or snooze if possible
-3. **If an email already has a matching Notion task, or you create one, always archive the email immediately.** Don't keep emails in the inbox as reminders — that's what Notion tasks are for.
-4. **When creating or updating a Notion task from an email, include a link to the email** in the task notes. Gmail links: `https://mail.google.com/mail/u/0/#inbox/<message_id>`
-5. Goal: inbox should be empty after every triage session
+4. **If an email already has a matching Notion task, or you create one, always archive the email immediately.** Don't keep emails in the inbox as reminders — that's what Notion tasks are for.
+5. **When creating or updating a Notion task from an email, include a link to the email** in the task notes. Gmail links: `https://mail.google.com/mail/u/0/#inbox/<message_id>`
+6. Goal: inbox should be empty after every triage session
 
 ### Email attachments → Google Drive
 When processing emails with attachments (non-spam):
@@ -322,9 +352,10 @@ gws tasks tasks patch --params '{"tasklist": "MTEzODI3MTczMzYzODUyNzM2NDM6MDow",
 
 ### Daily
 1. **Run `uv run pa-core checkin`** — syncs Google Tasks, backs up to Drive, fetches full context
-2. Follow the coaching prompt output: wellness check-in, then present tasks matched to energy
-3. Run email triage (above)
-4. At end of session: `uv run pa-core briefing --save --telegram`
+2. **Wellness check-in** — ask how Tim is doing (mood + physical), log response
+3. **Email triage** — process inbox interactively (archive, reply, create tasks as needed; ask Tim about anything ambiguous)
+4. **Plan the day** — now with full picture of tasks (including any just created from emails), curate focus tasks matched to energy level
+5. At end of session: `uv run pa-core briefing --save --telegram`
 
 ### Evening
 1. **Run `uv run pa-core checkin --evening`** — syncs tasks, backs up, fetches context

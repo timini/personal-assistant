@@ -1,13 +1,17 @@
-"""Telegram Bot API client — send messages and briefings."""
+"""Telegram Bot API client — send messages, read incoming messages, and briefings."""
 
+import json
 import re
+from datetime import datetime
+from pathlib import Path
 
 import httpx
 
-from pa_core.config import get_secret, get_user_config
+from pa_core.config import PA_ROOT, get_secret, get_user_config
 
 TELEGRAM_API = "https://api.telegram.org"
 MAX_MESSAGE_LENGTH = 4096
+_OFFSET_FILE = PA_ROOT / "activity" / ".telegram_offset"
 
 
 def _get_bot_token() -> str:
@@ -103,6 +107,83 @@ def send_message(text: str, parse_mode: str = "Markdown") -> list[dict]:
             raise RuntimeError(f"Telegram API error: {description}")
         responses.append(data)
     return responses
+
+
+def _read_offset() -> int | None:
+    """Read the last acknowledged update_id from the offset file."""
+    if _OFFSET_FILE.exists():
+        text = _OFFSET_FILE.read_text().strip()
+        if text:
+            return int(text)
+    return None
+
+
+def _write_offset(offset: int) -> None:
+    """Write the offset (last acknowledged update_id + 1) to the offset file."""
+    _OFFSET_FILE.write_text(str(offset))
+
+
+def get_messages(limit: int = 100) -> list[dict]:
+    """Fetch new messages sent to the bot by the configured chat_id.
+
+    Uses getUpdates with offset tracking. Returns list of
+    {update_id, date, time, text, from_name} dicts.
+
+    Two-phase design: call acknowledge_messages() after surfacing to mark as read.
+    """
+    token = _get_bot_token()
+    chat_id = str(_get_chat_id())
+    url = f"{TELEGRAM_API}/bot{token}/getUpdates"
+
+    params: dict = {"limit": limit, "allowed_updates": json.dumps(["message"])}
+    offset = _read_offset()
+    if offset is not None:
+        params["offset"] = offset
+
+    resp = httpx.get(url, params=params, timeout=30)
+    data = resp.json()
+    if not data.get("ok"):
+        raise RuntimeError(f"Telegram API error: {data.get('description', 'Unknown error')}")
+
+    messages = []
+    for update in data.get("result", []):
+        msg = update.get("message")
+        if not msg:
+            continue
+        # Filter to configured chat_id only
+        if str(msg.get("chat", {}).get("id")) != chat_id:
+            continue
+        text = msg.get("text")
+        if not text:
+            continue
+
+        ts = msg.get("date", 0)
+        dt = datetime.fromtimestamp(ts)
+        from_user = msg.get("from", {})
+        from_name = from_user.get("first_name", "Unknown")
+        if from_user.get("last_name"):
+            from_name += f" {from_user['last_name']}"
+
+        messages.append({
+            "update_id": update["update_id"],
+            "date": dt.strftime("%Y-%m-%d"),
+            "time": dt.strftime("%H:%M"),
+            "text": text,
+            "from_name": from_name,
+        })
+
+    return messages
+
+
+def acknowledge_messages(messages: list[dict]) -> None:
+    """Mark messages as read by writing max update_id + 1 to offset file.
+
+    Next getUpdates call will skip these messages.
+    """
+    if not messages:
+        return
+    max_id = max(m["update_id"] for m in messages)
+    _write_offset(max_id + 1)
 
 
 def send_briefing(date: str | None = None) -> list[dict]:

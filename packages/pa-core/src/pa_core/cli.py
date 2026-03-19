@@ -38,7 +38,7 @@ def cmd_briefing(args):
                 print("Briefing sent to Telegram.")
             except (ImportError, Exception) as exc:
                 print(f"Telegram send failed: {exc}", file=sys.stderr)
-    if args.backup:
+    if not args.no_backup:
         try:
             from pa_google.drive import run_backup
             result = run_backup()
@@ -48,13 +48,23 @@ def cmd_briefing(args):
 
 
 def cmd_context(args):
-    from pa_core.context import get_today_context, render_context
     import json
+
+    from pa_core.context import get_today_context, render_context
+
     ctx = get_today_context()
     if args.json:
         print(json.dumps(ctx, indent=2, default=str))
     else:
         print(render_context(ctx))
+
+    # Acknowledge Telegram messages after surfacing
+    try:
+        if ctx.get("telegram_messages"):
+            from pa_telegram.client import acknowledge_messages
+            acknowledge_messages(ctx["telegram_messages"])
+    except Exception:
+        pass
 
 
 def cmd_checkin(args):
@@ -89,30 +99,20 @@ def cmd_checkin(args):
     except Exception as exc:
         print(f"  Task sync failed: {exc}", file=sys.stderr)
 
-    # 2. Backup personal files to Google Drive
-    if not args.no_backup:
-        print("Backing up to Google Drive...", file=sys.stderr)
-        try:
-            from pa_google.drive import run_backup
-            result = run_backup()
-            print(f"  Backup uploaded: {result['filename']}", file=sys.stderr)
-        except Exception as exc:
-            print(f"  Backup failed: {exc}", file=sys.stderr)
-
-    # 3. Fetch full context
+    # 2. Fetch full context
     print("Fetching today's context...", file=sys.stderr)
     from pa_core.context import get_today_context, render_context
     ctx = get_today_context()
 
     print("", file=sys.stderr)  # blank line separator
 
-    # 4. Output context + coaching instructions for Claude
+    # 3. Output context
     if args.json:
         print(json.dumps(ctx, indent=2, default=str))
     else:
         print(render_context(ctx))
 
-    # 5. Append coaching prompt
+    # 4. Coaching prompt
     if not args.json:
         period = ctx["now"]["period"]
         name = ctx["now"].get("display", "today")
@@ -128,6 +128,24 @@ def cmd_checkin(args):
             print("Then present tasks matched to energy level — max 5, curated, not a dump.")
             print("Frame the day as winnable: \"Here's what would make today a win.\"")
             print("Check user-instructions.md for personal context and contacts.")
+
+    # 5. Acknowledge Telegram messages after surfacing
+    try:
+        if ctx.get("telegram_messages"):
+            from pa_telegram.client import acknowledge_messages
+            acknowledge_messages(ctx["telegram_messages"])
+    except Exception:
+        pass
+
+    # 6. Backup personal files to Google Drive
+    if not args.no_backup:
+        print("Backing up to Google Drive...", file=sys.stderr)
+        try:
+            from pa_google.drive import run_backup
+            result = run_backup()
+            print(f"  Backup uploaded: {result['filename']}", file=sys.stderr)
+        except Exception as exc:
+            print(f"  Backup failed: {exc}", file=sys.stderr)
 
 
 def cmd_log(args):
@@ -153,7 +171,7 @@ def main():
     bp.add_argument("--evening", action="store_true", help="Generate evening briefing instead of morning")
     bp.add_argument("--save", action="store_true", help="Save briefing to file")
     bp.add_argument("--date", default=None, help="Date (YYYY-MM-DD), defaults to today")
-    bp.add_argument("--backup", action="store_true", help="Backup personal files after saving")
+    bp.add_argument("--no-backup", action="store_true", help="Skip Google Drive backup")
     bp.add_argument("--telegram", action="store_true", help="Send briefing to Telegram")
 
     # checkin
