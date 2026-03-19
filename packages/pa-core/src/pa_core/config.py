@@ -58,6 +58,28 @@ def get_enabled_plugins() -> list[str]:
     return get_user_config().get("enabled_plugins", [])
 
 
+def get_user_profile() -> dict:
+    """Return the profile section from user.yaml, or empty dict if not set."""
+    return get_user_config().get("profile", {})
+
+
+def get_profile_field(field: str) -> str | None:
+    """Return a specific profile field, or None if not set."""
+    return get_user_profile().get(field)
+
+
+def set_profile_field(field: str, value: str) -> None:
+    """Set a profile field in user.yaml, preserving all existing config."""
+    user_yaml = PA_ROOT / "user.yaml"
+    with open(user_yaml) as f:
+        config = yaml.safe_load(f) or {}
+    profile = config.get("profile", {})
+    profile[field] = value
+    config["profile"] = profile
+    with open(user_yaml, "w") as f:
+        yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+
+
 def get_now() -> dict:
     """Return current date/time info formatted for session context.
 

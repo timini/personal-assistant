@@ -5,14 +5,25 @@
 
 ## Email Triage Rules
 
+> **Principle: No email exists in isolation.** Always check if an email relates to something already tracked in Notion before deciding how to handle it. Extract every date, deadline, link, and action item — don't leave value on the table.
+
 1. Fetch ALL inbox emails (read + unread) — not just unread
-2. For each email, decide immediately:
-   - **Noise** (delivery updates, parking receipts, generic notifications) → archive
+2. **Cross-reference each email against Notion tasks/projects** before categorising:
+   - Search for related tasks by keyword (sender name, subject terms, project names)
+   - If a related task exists, extract and act on ALL information in the email:
+     - **Dates/events** → create calendar events (use Family Calendar for personal, primary for work)
+     - **Deadlines** → update task due dates or create sub-tasks
+     - **Links** (fundraising pages, sign-up forms, resources) → add to task notes
+     - **Action items** → create sub-tasks or update existing task notes
+     - **Key contacts/details** → add to task notes
+   - An email that seems like "just info" on its own may be critical context for an existing task
+3. **Then** categorise and act on each email:
+   - **Noise** (delivery updates, parking receipts, generic notifications with no task relevance) → archive
    - **Quick action** (pay a bill, RSVP, short reply) → do it, then archive
    - **Needs follow-up** → create Notion task with context + email link, then archive
    - **Time-sensitive** → flag to user
-3. If an email has a matching Notion task, archive it immediately
-4. Include Gmail links in Notion task notes: `https://mail.google.com/mail/u/0/#inbox/<message_id>`
+4. If an email has a matching Notion task, archive it immediately
+5. Include Gmail links in Notion task notes: `https://mail.google.com/mail/u/0/#inbox/<message_id>`
 
 ## Gmail Gotchas
 
@@ -34,10 +45,21 @@ ALWAYS use `gws gmail users threads modify` — NOT `messages modify`. Gmail UI 
 
 **Never ask "shall I send it?" — always create a Gmail draft and provide the review link.**
 
-When composing any email on the user's behalf:
-1. Build the MIME message and create a draft: `gws gmail users drafts create`
-2. Provide the link: `https://mail.google.com/mail/u/0/#drafts/<message_id>`
-3. The user will review and send themselves
+When composing any email on the user's behalf, use the `create_draft()` helper:
+```python
+from pa_google.gmail import create_draft
+result = create_draft(
+    to="recipient@example.com",
+    subject="Re: Thread subject",
+    body="Email body text",
+    thread_id="<thread_id>",  # optional, for replies
+)
+print(result["link"])  # link for user to review
+```
+
+**Do NOT build raw RFC 2822 messages manually** — `create_draft()` uses `email.mime` for proper encoding and auto-recovers if Gmail silently trashes the draft (a known Gmail API quirk with malformed headers).
+
+**NEVER use the Gmail MCP tool (`mcp__claude_ai_Gmail__gmail_create_draft`)** — it silently trashes threaded drafts. Always use `pa_google.gmail.create_draft()` which handles trash detection and recovery.
 
 ## Research Tasks → Google Docs
 
