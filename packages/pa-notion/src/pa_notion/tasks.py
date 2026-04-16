@@ -104,7 +104,7 @@ def add_task(title: str, project: str = "", priority: str = "", notes: str = "")
 
 
 GOOGLE_TASK_LISTS = {
-    "today": "MTEzODI3MTczMzYzODUyNzM2NDM6MDow",
+    "today": get_secret("GOOGLE_TODAY_TASKLIST_ID"),
 }
 
 

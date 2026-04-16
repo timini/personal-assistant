@@ -12,7 +12,7 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_update(update_id, chat_id, text, ts=1711000000, first="Tim", last="Rich"):
+def _make_update(update_id, chat_id, text, ts=1711000000, first="Alice", last="Smith"):
     """Build a Telegram Update dict."""
     return {
         "update_id": update_id,
@@ -150,7 +150,7 @@ class TestGetMessages:
         assert len(msgs) == 2
         assert msgs[0]["text"] == "hello"
         assert msgs[0]["update_id"] == 1
-        assert msgs[0]["from_name"] == "Tim Rich"
+        assert msgs[0]["from_name"] == "Alice Smith"
         assert msgs[1]["text"] == "world"
         # Verify offset not passed when None
         call_kwargs = mock_get.call_args
@@ -209,7 +209,7 @@ class TestGetMessages:
             "message": {
                 "date": 1711000000,
                 "chat": {"id": 111},
-                "from": {"first_name": "Tim"},
+                "from": {"first_name": "Alice"},
                 "photo": [{"file_id": "abc"}],
                 # no "text" key
             },

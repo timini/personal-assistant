@@ -26,7 +26,7 @@ class TestGetMessages:
                 {
                     "body": "Hello there",
                     "timestamp": "2026-04-15T10:30:00Z",
-                    "pushName": "Laura",
+                    "pushName": "Bob",
                     "chatName": "Family",
                     "id": "msg123",
                 }
@@ -36,7 +36,7 @@ class TestGetMessages:
         messages = get_messages()
         assert len(messages) == 1
         assert messages[0]["text"] == "Hello there"
-        assert messages[0]["from_name"] == "Laura"
+        assert messages[0]["from_name"] == "Bob"
         assert messages[0]["chat_name"] == "Family"
         assert messages[0]["message_id"] == "msg123"
 

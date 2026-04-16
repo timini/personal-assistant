@@ -42,7 +42,7 @@ uv run pa-ebay search "vintage bell tent" --uk-only --json
 ## Gotchas
 
 - **Rate limits**: ~5000 calls/day on production keys. Plenty for manual research, but don't loop unnecessarily.
-- **Marketplace**: Defaults to `EBAY_GB` (UK). Hardcoded since Tim is UK-based.
+- **Marketplace**: Defaults to `EBAY_GB` (UK). Hardcoded since the user is UK-based.
 - **OAuth tokens**: Cached in-process, last ~2 hours. One token fetch per CLI invocation.
 - **Results**: Browse API returns max 200 items per request. Default limit is 10.
 - **Condition values**: Must be uppercase in API calls (`NEW`, `USED`). The CLI accepts either case.

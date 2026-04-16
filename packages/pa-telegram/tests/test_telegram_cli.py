@@ -24,15 +24,15 @@ class TestCmdMessages:
         assert "No new messages." in capsys.readouterr().out
 
     @patch("pa_telegram.client.get_messages", return_value=[
-        {"date": "2026-03-19", "time": "14:48", "from_name": "Tim", "text": "hello", "update_id": 1},
+        {"date": "2026-03-19", "time": "14:48", "from_name": "Alice", "text": "hello", "update_id": 1},
     ])
     def test_messages_text_output(self, _gm, capsys):
         self._run(["messages"])
         out = capsys.readouterr().out
-        assert "[2026-03-19 14:48] Tim: hello" in out
+        assert "[2026-03-19 14:48] Alice: hello" in out
 
     @patch("pa_telegram.client.get_messages", return_value=[
-        {"date": "2026-03-19", "time": "14:48", "from_name": "Tim", "text": "hello", "update_id": 1},
+        {"date": "2026-03-19", "time": "14:48", "from_name": "Alice", "text": "hello", "update_id": 1},
     ])
     def test_messages_json_output(self, _gm, capsys):
         self._run(["messages", "--json"])
@@ -43,7 +43,7 @@ class TestCmdMessages:
 
     @patch("pa_telegram.client.acknowledge_messages")
     @patch("pa_telegram.client.get_messages", return_value=[
-        {"date": "2026-03-19", "time": "14:48", "from_name": "Tim", "text": "hello", "update_id": 1},
+        {"date": "2026-03-19", "time": "14:48", "from_name": "Alice", "text": "hello", "update_id": 1},
     ])
     def test_messages_ack(self, _gm, mock_ack, capsys):
         self._run(["messages", "--ack"])

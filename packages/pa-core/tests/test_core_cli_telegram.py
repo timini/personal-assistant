@@ -20,7 +20,7 @@ FAKE_CTX = {
     "calendar": [],
     "emails": [],
     "telegram_messages": [
-        {"update_id": 1, "date": "2026-03-19", "time": "09:00", "text": "reminder", "from_name": "Tim"},
+        {"update_id": 1, "date": "2026-03-19", "time": "09:00", "text": "reminder", "from_name": "Alice"},
     ],
     "tasks_due_soon": [],
     "tasks_urgent": [],

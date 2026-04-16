@@ -40,7 +40,7 @@ def _patch_all_fetchers():
 class TestGetTodayContextTelegram:
     def test_telegram_messages_included_in_context(self):
         fake_msgs = [
-            {"update_id": 1, "date": "2026-03-19", "time": "09:00", "text": "reminder", "from_name": "Tim"},
+            {"update_id": 1, "date": "2026-03-19", "time": "09:00", "text": "reminder", "from_name": "Alice"},
         ]
         patches = _patch_all_fetchers()
         patches.append(patch("pa_telegram.client.get_messages", return_value=fake_msgs))
@@ -91,7 +91,7 @@ class TestRenderContextTelegram:
             "calendar": [],
             "emails": [],
             "telegram_messages": [
-                {"time": "09:15", "from_name": "Tim", "text": "Call dentist"},
+                {"time": "09:15", "from_name": "Alice", "text": "Call dentist"},
             ],
             "tasks_due_soon": [],
             "tasks_urgent": [],
@@ -108,7 +108,7 @@ class TestRenderContextTelegram:
         }
         output = render_context(ctx)
         assert "## Telegram Messages" in output
-        assert "[09:15] Tim: Call dentist" in output
+        assert "[09:15] Alice: Call dentist" in output
 
     def test_render_without_messages(self):
         from pa_core.context import render_context
@@ -141,7 +141,7 @@ class TestRenderContextTelegram:
             "calendar": [],
             "emails": [],
             "telegram_messages": [
-                {"time": "09:15", "from_name": "Tim", "text": "test"},
+                {"time": "09:15", "from_name": "Alice", "text": "test"},
             ],
             "tasks_due_soon": [],
             "tasks_urgent": [],

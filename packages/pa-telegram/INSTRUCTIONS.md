@@ -1,7 +1,7 @@
 # pa-telegram — Telegram Notifications
 
 ## Goal
-Deliver briefings and notifications to Tim's phone via Telegram Bot API.
+Deliver briefings and notifications to the user's phone via Telegram Bot API.
 
 ## How it works
 - Uses the Telegram Bot API directly via `httpx` (no heavy library needed)
@@ -50,7 +50,7 @@ uv run pa-core briefing --save --backup --telegram  # Save + backup + send
 
 ## Evening Briefing Flow (Interactive via Telegram)
 
-The evening briefing should be interactive — ask Tim about habits, gratitude, etc. via Telegram before generating the briefing.
+The evening briefing should be interactive — ask the user about habits, gratitude, etc. via Telegram before generating the briefing.
 
 ### Interim approach (until Telegram polling is built — see issue #9)
 
@@ -70,9 +70,9 @@ The evening briefing should be interactive — ask Tim about habits, gratitude, 
        }
      }'
    ```
-   Use inline keyboards for ALL check-in questions — never send plain text multiple choice. Tim should be able to tap buttons, not type.
+   Use inline keyboards for ALL check-in questions — never send plain text multiple choice. the user should be able to tap buttons, not type.
 
-2. **Wait for Tim to tap a button** — use `sleep` or ask Tim to confirm in terminal. Read the callback:
+2. **Wait for the user to tap a button** — use `sleep` or ask the user to confirm in terminal. Read the callback:
    ```bash
    curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=-1" | python3 -c "
    import json,sys
@@ -112,7 +112,7 @@ Send questions one at a time. Standard button layouts:
 ### Key rules
 - Always do the check-in BEFORE generating the briefing, so habit/gratitude data is included
 - Don't skip the check-in — it's the whole point of the evening flow
-- If Tim doesn't reply within 5 mins, send a gentle nudge, then generate without if still no reply
+- If the user doesn't reply within 5 mins, send a gentle nudge, then generate without if still no reply
 - Log everything — habits completed, skipped, or not logged
 
 ## Gotchas

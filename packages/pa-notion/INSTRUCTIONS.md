@@ -36,7 +36,7 @@ Tasks accumulate cruft. Every week (see CLAUDE.md Weekly workflow — Sunday eve
 - **Meta/container tasks** — the `{Project} — tasks` pattern should be a home page with context, not a dumping ground; sub-tasks should be linked via `Parent item` relation
 - **Orphan groups** — clusters of related tasks (same project, same topic) that should be linked via `Parent item`
 
-**Never mark a task Done without Tim's explicit confirmation** — he's been burned by this before. When in doubt, ASK.
+**Never mark a task Done without the user's explicit confirmation** — he's been burned by this before. When in doubt, ASK.
 
 ## Sub-task Pattern
 ```python
@@ -46,12 +46,12 @@ client.update_page(child_id, {"Parent item": {"relation": [{"id": parent_id}]}})
 
 ## Google Tasks Sync
 
-**ALWAYS sync Google Tasks back to Notion at the start of every session** — run `uv run pa-notion tasks sync` before doing anything else. This picks up tasks Tim completed on his phone and marks them Done in Notion. Without this, the task list is stale.
+**ALWAYS sync Google Tasks back to Notion at the start of every session** — run `uv run pa-notion tasks sync` before doing anything else. This picks up tasks the user completed on his phone and marks them Done in Notion. Without this, the task list is stale.
 
 Sync also runs automatically during briefing generation (`pa-core briefing`), but that's not sufficient — sync must happen at session start regardless of whether a briefing is generated.
 
 ### Google Task Lists
-Only the `🌈Today` list exists (ID: `MTEzODI3MTczMzYzODUyNzM2NDM6MDow`). The Next and Waiting lists were removed.
+Only the `🌈Today` list is configured (ID read from `GOOGLE_TODAY_TASKLIST_ID` env var). Set this in `.env`.
 
 ### Orphaned task import
 If a Google Task has no Notion link (e.g. added directly on phone), sync will automatically create a matching Notion task and update the Google Task with the Notion link. Completed orphans are created as Done and removed from Google Tasks. Incomplete orphans stay on the phone with the Notion link added to notes. `[Project]` prefixes in titles are parsed back into the Notion project field.
