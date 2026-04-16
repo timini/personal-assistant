@@ -7,10 +7,11 @@
 
 1. Every task needs: **status, priority, project, and clear title**
 2. **Clear task names** — include enough context to act on (e.g. "Pay £800 for Landplan" not "800 Landplan")
-3. **Group related tasks** under a parent using `Parent Task` relation
+3. **Group related tasks** under a parent using `Parent item` relation
 4. **Set due dates** on time-sensitive items — work backwards from actual deadlines
 5. **Present tasks grouped by project** when showing to user
 6. When creating tasks from emails, include Gmail link in Notes field
+7. **ALWAYS keep task Notes up to date.** Notion is the knowledge base. When working on a task, update its Notes with the current state of play — decisions made, emails sent/received, options discussed, draft content, and next steps. Notes should be detailed enough that anyone picking up the task can understand what's happened and what to do next. This applies especially to tasks involving email threads, people conversations, and multi-step processes.
 
 ## Notion DB Schema (Tasks database)
 
@@ -20,12 +21,27 @@
 - `Project` (select: Day Job, AI Transformation, Line Management, House Renovation, House Declutter, Garden, Fitness, Music, Landplan, Admin / Finance)
 - `Due Date` (date)
 - `Notes` (rich_text)
-- `Parent Task` (self-relation for sub-tasks)
+- `Parent item` (built-in sub-items relation)
+
+## Task Hygiene
+
+Tasks accumulate cruft. Every week (see CLAUDE.md Weekly workflow — Sunday evening checkin), run a hygiene pass to prevent the list becoming stale and overwhelming.
+
+**Audit categories:**
+- **No duplicates** — same action tracked in 2+ tasks → propose merge
+- **Notes up to date** — every In Progress task must have current state in Notes (see rule 7 in Task Rules)
+- **Stale In Progress** — In Progress for 14+ days with no Notes update → ask if still active
+- **Urgent = due date** — Urgent priority without a due date is invalid; add the date or drop priority
+- **Overdue is not a lie** — if due date has passed and the task isn't Done, decide: bump date, mark Waiting, or close
+- **Meta/container tasks** — the `{Project} — tasks` pattern should be a home page with context, not a dumping ground; sub-tasks should be linked via `Parent item` relation
+- **Orphan groups** — clusters of related tasks (same project, same topic) that should be linked via `Parent item`
+
+**Never mark a task Done without Tim's explicit confirmation** — he's been burned by this before. When in doubt, ASK.
 
 ## Sub-task Pattern
 ```python
 parent_id = client.create_page(db_id, parent_props)["id"]
-client.update_page(child_id, {"Parent Task": {"relation": [{"id": parent_id}]}})
+client.update_page(child_id, {"Parent item": {"relation": [{"id": parent_id}]}})
 ```
 
 ## Google Tasks Sync

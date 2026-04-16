@@ -55,6 +55,10 @@ uv run pa-notion tasks promote <id>                # Promote to Google Tasks "To
 uv run pa-notion tasks promote <id> --due 2026-03-14  # With explicit due date
 uv run pa-notion tasks sync                    # Sync completed Google Tasks → Notion (auto-runs during briefings)
 
+# Notion stats
+uv run pa-notion stats                         # Task stats with ASCII bar charts
+uv run pa-notion stats --json                  # JSON output (for briefing integration)
+
 # Notion heatmap
 uv run pa-notion heatmap                       # GitHub-style activity heatmap on Notion
 uv run pa-notion heatmap --weeks 24            # Show 24 weeks of history
@@ -76,6 +80,8 @@ uv run pa-core checkin                         # Sync tasks + backup + full cont
 uv run pa-core checkin --evening               # Evening session (habits, gratitude, tomorrow preview)
 uv run pa-core checkin --no-backup             # Skip Google Drive backup
 uv run pa-core checkin --json                  # JSON context output (no coaching prompt)
+uv run pa-core checkin --telegram              # Checkin + send briefing to Telegram
+uv run pa-core checkin --evening --telegram    # Evening checkin + send evening briefing to Telegram
 
 # Session context (context only, no sync/backup)
 uv run pa-core context                         # Today's full context (calendar + emails + tasks + habits + weather)
@@ -175,12 +181,12 @@ Shared utilities — NO integration-specific code. If core is broken, everything
 **Notion DB schema** (Tasks database):
 - `Task` (title), `Status` (select: To Do/In Progress/Waiting/Done), `Priority` (select: Urgent/High/Medium/Low)
 - `Project` (select: Day Job, AI Transformation, Line Management, House Renovation, House Declutter, Garden, Fitness, Music, Landplan, Admin / Finance)
-- `Due Date` (date), `Notes` (rich_text — use for email links etc), `Parent Task` (self-relation — for sub-tasks)
+- `Due Date` (date), `Notes` (rich_text — use for email links etc), `Parent item` (built-in sub-items relation)
 
-**Sub-task pattern**: Create a parent task, then link children via `Parent Task` relation:
+**Sub-task pattern**: Create a parent task, then link children via `Parent item` relation:
 ```python
 parent_id = client.create_page(db_id, parent_props)["id"]
-client.update_page(child_id, {"Parent Task": {"relation": [{"id": parent_id}]}})
+client.update_page(child_id, {"Parent item": {"relation": [{"id": parent_id}]}})
 ```
 
 ### pa-telegram
@@ -387,21 +393,36 @@ gws tasks tasks patch --params '{"tasklist": "MTEzODI3MTczMzYzODUyNzM2NDM6MDow",
 ```
 
 ### Daily
-1. **Run `uv run pa-core checkin`** — syncs Google Tasks, backs up to Drive, fetches full context
+1. **Run `uv run pa-core checkin --telegram`** — syncs Google Tasks, backs up to Drive, fetches full context, sends briefing to Telegram
 2. **Wellness check-in** — ask how Tim is doing (mood + physical), log response
 3. **Email triage** — process inbox interactively (archive, reply, create tasks as needed; ask Tim about anything ambiguous)
 4. **Plan the day** — now with full picture of tasks (including any just created from emails), curate focus tasks matched to energy level
-5. At end of session: `uv run pa-core briefing --save --telegram`
+5. **ALWAYS send the day's plan/TODO list to Telegram** at the end of the checkin so Tim has it on his phone
+6. At end of session: `uv run pa-core briefing --save --telegram`
 
 ### Evening
-1. **Run `uv run pa-core checkin --evening`** — syncs tasks, backs up, fetches context
+1. **Run `uv run pa-core checkin --evening --telegram`** — syncs tasks, backs up, fetches context, sends evening briefing to Telegram
 2. Follow the coaching prompt: habit check-in, freeform wins, gratitude, tomorrow preview
-3. Generate and save evening briefing: `uv run pa-core briefing --evening --save --telegram`
+3. **ALWAYS send tomorrow's preview/TODO to Telegram** at the end of the evening checkin
+4. Generate and save evening briefing: `uv run pa-core briefing --evening --save --telegram`
 
-### Weekly
-1. Full task review — check for stale, overdue, or completed tasks
-2. Prep for upcoming meetings/1:1s using calendar
-3. Update activity logs with significant events
+### Weekly — Task Hygiene & Review
+
+Run this on **Sunday evening checkin** before the week starts. Proactively offer it — don't wait for Tim to ask.
+
+1. **Sync first** — `uv run pa-notion tasks sync` then check `uv run --package pa-notion pa-notion tasks list`
+2. **Task hygiene pass — project by project**, check for:
+   - Duplicates / near-duplicates → propose merge to Tim
+   - Stale In Progress (no Notes update in 14+ days) → ask if still active
+   - Urgent priority without due date → ask for date or drop priority
+   - Overdue → bump realistic date or mark Waiting or close (ask first!)
+   - Vague titles / missing Notes → flag for context
+   - Orphan groups that should be sub-tasks → propose `Parent item` linking
+3. **Upcoming due dates** — surface tasks due in the next 7 days grouped by project
+4. **Prep meetings/1:1s** — check calendar for the coming week; brief on relevant context for each
+5. **Activity log update** — summarise the past week's wins into root `activity/log.md`
+
+**ALWAYS ASK Tim before marking anything Done** — don't assume completion status.
 
 ## Interaction Style — Wellness-Aware Sessions
 
