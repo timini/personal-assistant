@@ -24,3 +24,6 @@ build/
 # OS
 .DS_Store
 .coverage
+
+# Session artifacts (gws drive download/export temp files)
+download.*

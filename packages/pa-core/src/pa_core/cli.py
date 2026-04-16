@@ -66,6 +66,14 @@ def cmd_context(args):
     except Exception:
         pass
 
+    # Acknowledge WhatsApp messages after surfacing
+    try:
+        if ctx.get("whatsapp_messages"):
+            from pa_whatsapp.client import acknowledge_messages as ack_whatsapp
+            ack_whatsapp(ctx["whatsapp_messages"])
+    except Exception:
+        pass
+
 
 def cmd_checkin(args):
     """Single command to start a daily session: sync, backup, context, coaching prompt."""
@@ -137,6 +145,14 @@ def cmd_checkin(args):
     except Exception:
         pass
 
+    # 5b. Acknowledge WhatsApp messages after surfacing
+    try:
+        if ctx.get("whatsapp_messages"):
+            from pa_whatsapp.client import acknowledge_messages as ack_whatsapp
+            ack_whatsapp(ctx["whatsapp_messages"])
+    except Exception:
+        pass
+
     # 6. Backup personal files to Google Drive
     if not args.no_backup:
         print("Backing up to Google Drive...", file=sys.stderr)
@@ -146,6 +162,20 @@ def cmd_checkin(args):
             print(f"  Backup uploaded: {result['filename']}", file=sys.stderr)
         except Exception as exc:
             print(f"  Backup failed: {exc}", file=sys.stderr)
+
+    # 7. Send briefing to Telegram
+    if args.telegram:
+        try:
+            if args.evening or ctx["now"]["period"] == "evening":
+                from pa_telegram.client import send_evening_briefing
+                send_evening_briefing()
+                print("Evening briefing sent to Telegram.")
+            else:
+                from pa_telegram.client import send_briefing
+                send_briefing()
+                print("Briefing sent to Telegram.")
+        except (ImportError, Exception) as exc:
+            print(f"Telegram send failed: {exc}", file=sys.stderr)
 
 
 def cmd_log(args):
@@ -179,6 +209,7 @@ def main():
     ci.add_argument("--evening", action="store_true", help="Run as evening session")
     ci.add_argument("--no-backup", action="store_true", help="Skip Google Drive backup")
     ci.add_argument("--json", action="store_true", help="Output context as JSON (no coaching prompt)")
+    ci.add_argument("--telegram", action="store_true", help="Send briefing summary to Telegram")
 
     # context
     cp = sub.add_parser("context", help="Today's full context (calendar + emails + tasks + habits + weather)")

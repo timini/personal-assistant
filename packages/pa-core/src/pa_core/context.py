@@ -306,6 +306,24 @@ def get_today_context() -> dict:
         telegram_messages = []
         errors.append(f"Telegram: {exc}")
 
+    # WhatsApp messages
+    try:
+        from pa_whatsapp.client import get_messages as get_whatsapp_messages
+        whatsapp_messages = get_whatsapp_messages()
+    except Exception as exc:
+        whatsapp_messages = []
+        errors.append(f"WhatsApp: {exc}")
+
+    # Task stats (from Notion — project breakdowns + completion trends)
+    try:
+        from pa_notion.stats import get_task_stats, render_stats
+        task_stats = get_task_stats(today=date_str)
+        task_stats_text = render_stats(task_stats)
+    except Exception as exc:
+        task_stats = {}
+        task_stats_text = ""
+        errors.append(f"Task stats: {exc}")
+
     # Weather
     try:
         weather = _fetch_weather()
@@ -325,7 +343,10 @@ def get_today_context() -> dict:
         "completed_yesterday": completed_yesterday,
         "stats": stats,
         "telegram_messages": telegram_messages,
+        "whatsapp_messages": whatsapp_messages,
         "habits": habits,
+        "task_stats": task_stats,
+        "task_stats_text": task_stats_text,
         "weather": weather,
         "errors": errors,
     }

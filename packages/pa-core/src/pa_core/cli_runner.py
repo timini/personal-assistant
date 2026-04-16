@@ -83,4 +83,7 @@ def run_gws(
     if page_all:
         cmd.append("--page-all")
     result = run_cli(cmd, timeout=timeout)
+    # Some methods (e.g. delete) return empty responses — no JSON to parse
+    if not result.stdout.strip() or not any(c in result.stdout for c in ('{', '[')):
+        return None
     return parse_json_output(result)

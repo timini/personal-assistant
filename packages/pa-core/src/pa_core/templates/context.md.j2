@@ -27,6 +27,15 @@ _Inbox zero!_
 _No new messages._
 {% endif %}
 
+## WhatsApp Messages
+{% if whatsapp_messages %}
+{% for msg in whatsapp_messages %}
+- [{{ msg.time }}] {{ msg.from_name }}{% if msg.chat_name %} ({{ msg.chat_name }}){% endif %}: {{ msg.text }}
+{% endfor %}
+{% else %}
+_No new messages._
+{% endif %}
+
 ## Urgent Tasks
 {% if tasks_urgent %}
 {% for t in tasks_urgent %}
@@ -67,6 +76,13 @@ _Nothing logged._
 - Today: {{ stats.completed_today_count }} | Yesterday: {{ stats.completed_yesterday_count }}
 - Last 7 days: {{ stats.completed_7d_count }} (avg {{ "%.1f" | format(stats.avg_daily_7d) }}/day) | Last 30 days: {{ stats.completed_30d_count }} (avg {{ "%.1f" | format(stats.avg_daily_30d) }}/day)
 - Task streak: {{ stats.task_streak }} day{{ "s" if stats.task_streak != 1 else "" }} (consecutive days with at least 1 task completed)
+
+{% if task_stats_text %}
+## Task Overview
+```
+{{ task_stats_text }}
+```
+{% endif %}
 
 ## Weather — {{ weather.location }}
 {% if weather.temperature is not none %}
