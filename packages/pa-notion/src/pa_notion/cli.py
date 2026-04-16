@@ -5,6 +5,8 @@ import json
 import sys
 
 from pa_notion.tasks import list_tasks, add_task, update_task, promote_task, sync_google_tasks
+from pa_notion.heatmap import update_heatmap_page
+from pa_notion.stats import get_task_stats, render_stats
 
 
 def cmd_tasks_list(args):
@@ -55,6 +57,10 @@ def cmd_tasks_update(args):
         updates["priority"] = args.priority
     if args.project:
         updates["project"] = args.project
+    if args.due:
+        updates["due_date"] = args.due
+    if args.notes:
+        updates["notes"] = args.notes
 
     if not updates:
         print("No updates specified.", file=sys.stderr)
@@ -83,6 +89,29 @@ def cmd_tasks_sync(args):
             print(f"Synced {len(synced)} task(s) to Notion:")
             for s in synced:
                 print(f"  Done: {s['title']} (from {s['list']} list)")
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_heatmap(args):
+    """Generate achievement heatmap on Notion."""
+    try:
+        url = update_heatmap_page(page_id=args.page, weeks=args.weeks)
+        print(f"Heatmap updated: {url}")
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_stats(args):
+    """Show task stats with ASCII bar charts."""
+    try:
+        stats = get_task_stats()
+        if args.json:
+            print(json.dumps(stats, indent=2))
+        else:
+            print(render_stats(stats))
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -135,6 +164,8 @@ def main():
     update_p.add_argument("--status", help="New status")
     update_p.add_argument("--priority", help="New priority")
     update_p.add_argument("--project", help="New project")
+    update_p.add_argument("--due", help="Due date (YYYY-MM-DD)")
+    update_p.add_argument("--notes", help="Notes text")
     update_p.add_argument("--json", action="store_true")
 
     # tasks promote
@@ -148,9 +179,22 @@ def main():
     sync_p = tasks_sub.add_parser("sync", help="Sync completed Google Tasks back to Notion")
     sync_p.add_argument("--json", action="store_true")
 
+    # stats subcommand
+    stats_p = sub.add_parser("stats", help="Task stats with ASCII bar charts")
+    stats_p.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # heatmap subcommand
+    heatmap_p = sub.add_parser("heatmap", help="GitHub-style activity heatmap on Notion")
+    heatmap_p.add_argument("--weeks", type=int, default=12, help="Number of weeks to show (default: 12)")
+    heatmap_p.add_argument("--page", help="Notion page ID to write to")
+
     args = parser.parse_args()
 
-    if args.command == "tasks":
+    if args.command == "stats":
+        cmd_stats(args)
+    elif args.command == "heatmap":
+        cmd_heatmap(args)
+    elif args.command == "tasks":
         if args.action == "list":
             cmd_tasks_list(args)
         elif args.action == "add":

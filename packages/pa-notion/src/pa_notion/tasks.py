@@ -1,6 +1,8 @@
 """Task CRUD operations against the Notion tasks database."""
 
 import re
+import sys
+from datetime import datetime, timedelta, timezone
 
 from pa_core.cli_runner import run_gws
 from pa_core.config import get_secret
@@ -56,6 +58,7 @@ def _extract_task(page: dict) -> dict:
         "project": project,
         "due_date": due_date,
         "url": page.get("url", ""),
+        "last_edited_time": page.get("last_edited_time", ""),
     }
 
 
@@ -76,7 +79,7 @@ def list_tasks(status_filter: str | None = None) -> list[dict]:
 
 
 def add_task(title: str, project: str = "", priority: str = "", notes: str = "") -> dict:
-    """Add a new task to the tasks database."""
+    """Add a new task to the tasks database. Verifies creation by re-fetching."""
     client = NotionClient()
     db_id = _get_db_id()
 
@@ -91,7 +94,13 @@ def add_task(title: str, project: str = "", priority: str = "", notes: str = "")
         properties["Notes"] = {"rich_text": [{"text": {"content": notes}}]}
 
     page = client.create_page(db_id, properties)
-    return _extract_task(page)
+    created = _extract_task(page)
+
+    # Verify by re-fetching
+    verified = _extract_task(client.get_page(created["id"]))
+    if not verified["title"]:
+        raise RuntimeError(f"Task creation verification failed — page {created['id']} has no title")
+    return verified
 
 
 GOOGLE_TASK_LISTS = {
@@ -129,7 +138,11 @@ def promote_task(task_id: str, list_name: str = "today", due: str | None = None)
 
 
 def update_task(task_id: str, **updates) -> dict:
-    """Update task properties. Accepts: title, status, priority, project."""
+    """Update task properties. Accepts: title, status, priority, project, due_date.
+
+    Verifies the update by re-fetching the page and checking the values match.
+    Raises RuntimeError if verification fails.
+    """
     client = NotionClient()
     properties: dict = {}
 
@@ -141,9 +154,30 @@ def update_task(task_id: str, **updates) -> dict:
         properties["Priority"] = {"select": {"name": updates["priority"]}}
     if "project" in updates:
         properties["Project"] = {"select": {"name": updates["project"]}}
+    if "due_date" in updates:
+        properties["Due Date"] = {"date": {"start": updates["due_date"]}}
+    if "notes" in updates:
+        properties["Notes"] = {"rich_text": [{"text": {"content": updates["notes"]}}]}
 
-    page = client.update_page(task_id, properties)
-    return _extract_task(page)
+    client.update_page(task_id, properties)
+
+    # Verify by re-fetching
+    verified = _extract_task(client.get_page(task_id))
+
+    # Check each update was applied
+    field_map = {"status": "status", "priority": "priority", "project": "project", "title": "title", "due_date": "due_date"}
+    mismatches = []
+    for key, field in field_map.items():
+        if key in updates and verified[field] != updates[key]:
+            mismatches.append(f"{key}: expected '{updates[key]}', got '{verified[field]}'")
+
+    if mismatches:
+        raise RuntimeError(f"Task update verification failed for {task_id}: {'; '.join(mismatches)}")
+
+    if "status" in updates and updates["status"] == "Done":
+        _complete_google_task(task_id)
+
+    return verified
 
 
 def _notion_id_from_url(url: str) -> str | None:
@@ -153,6 +187,26 @@ def _notion_id_from_url(url: str) -> str | None:
         return None
     hex_id = match.group(1)
     return f"{hex_id[:8]}-{hex_id[8:12]}-{hex_id[12:16]}-{hex_id[16:20]}-{hex_id[20:]}"
+
+
+def _complete_google_task(notion_task_id: str) -> None:
+    """Find and complete the Google Task linked to this Notion task ID."""
+    notion_url_fragment = notion_task_id.replace("-", "")
+    for _list_name, tasklist_id in GOOGLE_TASK_LISTS.items():
+        try:
+            tasks = run_gws("tasks", "tasks", "list",
+                            params={"tasklist": tasklist_id})
+            if not tasks or "items" not in tasks:
+                continue
+            for gt in tasks["items"]:
+                notes = gt.get("notes", "")
+                if notion_url_fragment in notes:
+                    run_gws("tasks", "tasks", "patch",
+                            params={"tasklist": tasklist_id, "task": gt["id"]},
+                            body={"status": "completed"})
+                    return
+        except Exception as e:
+            print(f"WARNING: Failed to complete Google Task for {notion_task_id}: {e}", file=sys.stderr)
 
 
 def import_orphaned_tasks() -> list[dict]:
@@ -193,6 +247,17 @@ def import_orphaned_tasks() -> list[dict]:
 
             is_completed = gt.get("status") == "completed"
 
+            # Skip old completed orphans (>7 days) — not worth importing
+            if is_completed:
+                cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+                completed_str = gt.get("completed", "")
+                try:
+                    completed_dt = datetime.fromisoformat(completed_str.replace("Z", "+00:00"))
+                    if completed_dt < cutoff:
+                        continue
+                except (ValueError, TypeError):
+                    pass  # can't parse date — proceed with import
+
             try:
                 # Create in Notion
                 notion_task = add_task(
@@ -208,18 +273,13 @@ def import_orphaned_tasks() -> list[dict]:
 
                 notion_url = f"https://www.notion.so/{notion_task['id'].replace('-', '')}"
 
-                if is_completed:
-                    # Completed orphan → delete from Google Tasks
-                    run_gws("tasks", "tasks", "delete",
-                            params={"tasklist": tasklist_id, "task": gt["id"]})
-                else:
-                    # Incomplete orphan → update Google Task with Notion link
-                    new_notes = notion_url
-                    if notes:
-                        new_notes = f"{notion_url}\n{notes}"
-                    run_gws("tasks", "tasks", "patch",
-                            params={"tasklist": tasklist_id, "task": gt["id"]},
-                            body={"notes": new_notes})
+                # Update Google Task with Notion link (marks it as managed)
+                new_notes = notion_url
+                if notes:
+                    new_notes = f"{notion_url}\n{notes}"
+                run_gws("tasks", "tasks", "patch",
+                        params={"tasklist": tasklist_id, "task": gt["id"]},
+                        body={"notes": new_notes})
 
                 imported.append({
                     "title": title,
@@ -229,8 +289,8 @@ def import_orphaned_tasks() -> list[dict]:
                     "status": "Done" if is_completed else "To Do",
                     "project": project,
                 })
-            except Exception:
-                pass  # Skip tasks that fail
+            except Exception as e:
+                print(f"ERROR importing '{title}': {e}", file=sys.stderr)
     return imported
 
 
@@ -260,6 +320,11 @@ def sync_google_tasks() -> list[dict]:
             if not notion_id:
                 continue
             try:
+                # Check if already Done in Notion — skip, already synced
+                existing = get_task(notion_id)
+                if existing.get("status") == "Done":
+                    continue
+
                 notion_task = update_task(notion_id, status="Done")
                 synced.append({
                     "title": notion_task["title"],
@@ -267,8 +332,6 @@ def sync_google_tasks() -> list[dict]:
                     "google_task_id": gt["id"],
                     "list": list_name,
                 })
-                run_gws("tasks", "tasks", "delete",
-                        params={"tasklist": tasklist_id, "task": gt["id"]})
-            except Exception:
-                pass  # Skip tasks that fail (e.g. already deleted from Notion)
+            except Exception as e:
+                print(f"ERROR syncing task {notion_id}: {e}", file=sys.stderr)
     return imported + synced

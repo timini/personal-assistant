@@ -59,7 +59,7 @@ print(result["link"])  # link for user to review
 
 **Do NOT build raw RFC 2822 messages manually** — `create_draft()` uses `email.mime` for proper encoding and auto-recovers if Gmail silently trashes the draft (a known Gmail API quirk with malformed headers).
 
-**NEVER use the Gmail MCP tool (`mcp__claude_ai_Gmail__gmail_create_draft`)** — it silently trashes threaded drafts. Always use `pa_google.gmail.create_draft()` which handles trash detection and recovery.
+**NEVER use the Gmail MCP tool (`mcp__claude_ai_Gmail__gmail_create_draft`)** — it has a known bug where using `threadId` produces drafts with empty bodies. Always use `pa_google.gmail.create_draft()` which handles encoding, trash detection, and recovery correctly.
 
 ## Research Tasks → Google Docs
 
