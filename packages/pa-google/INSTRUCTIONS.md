@@ -35,6 +35,25 @@ ALWAYS use `gws gmail users threads modify` — NOT `messages modify`. Gmail UI 
 - Parameters: `--params '<json>'`, request body: `--json '<json>'`
 - gws prints preamble before JSON — `parse_json_output()` handles this
 
+### Searching Gmail — include trash and spam by default
+By default, `gws gmail users messages list` only returns mail from the **inbox + archive**. Items in **Trash** and **Spam** are excluded unless you explicitly opt in.
+
+When searching for an email and not finding it (e.g. order confirmations, receipts, anything the user expected to receive), **always re-run the search including Trash and Spam** before concluding it's not there. Users routinely auto-delete or accidentally trash receipts that turn out to be load-bearing later.
+
+Two ways to do this:
+- Add `in:anywhere` to your query string: `'q': 'Brisks in:anywhere'`
+- Or pass `"includeSpamTrash": true` in the params
+
+Example:
+```bash
+gws gmail users messages list --params '{"userId":"me","q":"Brisks in:anywhere","maxResults":15}'
+```
+
+Default search flow when looking for a missing email:
+1. Search inbox+archive
+2. If nothing relevant → search again with `in:anywhere`
+3. Only declare "not found" after both have come up empty
+
 ## Email Attachments → Google Drive
 1. Save attachments using `gws gmail users messages attachments get`
 2. Upload to Drive with `gws drive files create --upload <path>`
