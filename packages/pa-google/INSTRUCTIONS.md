@@ -41,17 +41,17 @@ By default, `gws gmail users messages list` only returns mail from the **inbox +
 When searching for an email and not finding it (e.g. order confirmations, receipts, anything the user expected to receive), **always re-run the search including Trash and Spam** before concluding it's not there. Users routinely auto-delete or accidentally trash receipts that turn out to be load-bearing later.
 
 Two ways to do this:
-- Add `in:anywhere` to your query string: `'q': 'Brisks in:anywhere'`
+- Add `in:all` to your query string: `'q': 'Brisks in:all'`
 - Or pass `"includeSpamTrash": true` in the params
 
 Example:
 ```bash
-gws gmail users messages list --params '{"userId":"me","q":"Brisks in:anywhere","maxResults":15}'
+gws gmail users messages list --params '{"userId":"me","q":"Brisks in:all","maxResults":15}'
 ```
 
 Default search flow when looking for a missing email:
 1. Search inbox+archive
-2. If nothing relevant → search again with `in:anywhere`
+2. If nothing relevant → search again with `in:all`
 3. Only declare "not found" after both have come up empty
 
 ## Email Attachments → Google Drive
