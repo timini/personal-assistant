@@ -203,15 +203,136 @@ class TestGetMessages:
     @patch("pa_telegram.client._get_chat_id", return_value="111")
     @patch("pa_telegram.client._get_bot_token", return_value="tok123")
     @patch("pa_telegram.client._read_offset", return_value=None)
-    def test_skips_messages_without_text(self, _off, _tok, _cid):
+    def test_keeps_photo_with_caption(self, _off, _tok, _cid, tmp_path):
+        from pa_telegram import client
         updates = [{
             "update_id": 1,
             "message": {
                 "date": 1711000000,
                 "chat": {"id": 111},
                 "from": {"first_name": "Alice"},
-                "photo": [{"file_id": "abc"}],
-                # no "text" key
+                "photo": [
+                    {"file_id": "small", "file_size": 100},
+                    {"file_id": "large", "file_size": 5000},
+                ],
+                "caption": "look at this",
+            },
+        }]
+        get_updates_resp = httpx.Response(200, json=_ok_response(updates))
+        get_file_resp = httpx.Response(
+            200, json={"ok": True, "result": {"file_path": "photos/file_42.jpg"}}
+        )
+        download_resp = httpx.Response(200, content=b"\xff\xd8\xff\xe0fakejpegbytes")
+
+        with patch.object(client, "_MEDIA_DIR", tmp_path):
+            with patch("httpx.get", side_effect=[get_updates_resp, get_file_resp, download_resp]):
+                msgs = client.get_messages()
+
+        assert len(msgs) == 1
+        assert msgs[0]["text"] == "look at this"
+        assert msgs[0]["image_path"].endswith(".jpg")
+        from pathlib import Path
+        assert Path(msgs[0]["image_path"]).exists()
+        assert Path(msgs[0]["image_path"]).read_bytes().startswith(b"\xff\xd8")
+
+    @patch("pa_telegram.client._get_chat_id", return_value="111")
+    @patch("pa_telegram.client._get_bot_token", return_value="tok123")
+    @patch("pa_telegram.client._read_offset", return_value=None)
+    def test_photo_without_caption(self, _off, _tok, _cid, tmp_path):
+        from pa_telegram import client
+        updates = [{
+            "update_id": 1,
+            "message": {
+                "date": 1711000000,
+                "chat": {"id": 111},
+                "from": {"first_name": "Alice"},
+                "photo": [{"file_id": "abc", "file_size": 100}],
+            },
+        }]
+        get_updates_resp = httpx.Response(200, json=_ok_response(updates))
+        get_file_resp = httpx.Response(
+            200, json={"ok": True, "result": {"file_path": "photos/x.jpg"}}
+        )
+        download_resp = httpx.Response(200, content=b"bytes")
+
+        with patch.object(client, "_MEDIA_DIR", tmp_path):
+            with patch("httpx.get", side_effect=[get_updates_resp, get_file_resp, download_resp]):
+                msgs = client.get_messages()
+
+        assert len(msgs) == 1
+        assert msgs[0]["text"] == ""
+        assert "image_path" in msgs[0]
+
+    @patch("pa_telegram.client._get_chat_id", return_value="111")
+    @patch("pa_telegram.client._get_bot_token", return_value="tok123")
+    @patch("pa_telegram.client._read_offset", return_value=None)
+    def test_photo_picks_largest_variant(self, _off, _tok, _cid, tmp_path):
+        from pa_telegram import client
+        updates = [{
+            "update_id": 1,
+            "message": {
+                "date": 1711000000,
+                "chat": {"id": 111},
+                "from": {"first_name": "Alice"},
+                "photo": [
+                    {"file_id": "tiny", "file_size": 100},
+                    {"file_id": "medium", "file_size": 1000},
+                    {"file_id": "biggest", "file_size": 50000},
+                ],
+                "caption": "x",
+            },
+        }]
+        get_updates_resp = httpx.Response(200, json=_ok_response(updates))
+        get_file_resp = httpx.Response(
+            200, json={"ok": True, "result": {"file_path": "photos/x.jpg"}}
+        )
+        download_resp = httpx.Response(200, content=b"bytes")
+
+        with patch.object(client, "_MEDIA_DIR", tmp_path):
+            with patch("httpx.get", side_effect=[get_updates_resp, get_file_resp, download_resp]) as mock_get:
+                client.get_messages()
+
+        # The 2nd httpx.get call is getFile — confirm file_id is "biggest"
+        getfile_call = mock_get.call_args_list[1]
+        assert getfile_call.kwargs["params"]["file_id"] == "biggest"
+
+    @patch("pa_telegram.client._get_chat_id", return_value="111")
+    @patch("pa_telegram.client._get_bot_token", return_value="tok123")
+    @patch("pa_telegram.client._read_offset", return_value=None)
+    def test_getfile_failure_keeps_message_without_path(self, _off, _tok, _cid, tmp_path):
+        from pa_telegram import client
+        updates = [{
+            "update_id": 1,
+            "message": {
+                "date": 1711000000,
+                "chat": {"id": 111},
+                "from": {"first_name": "Alice"},
+                "photo": [{"file_id": "abc", "file_size": 100}],
+                "caption": "still here",
+            },
+        }]
+        get_updates_resp = httpx.Response(200, json=_ok_response(updates))
+        get_file_resp = httpx.Response(200, json={"ok": False, "description": "not found"})
+
+        with patch.object(client, "_MEDIA_DIR", tmp_path):
+            with patch("httpx.get", side_effect=[get_updates_resp, get_file_resp]):
+                msgs = client.get_messages()
+
+        assert len(msgs) == 1
+        assert msgs[0]["text"] == "still here"
+        assert "image_path" not in msgs[0]
+
+    @patch("pa_telegram.client._get_chat_id", return_value="111")
+    @patch("pa_telegram.client._get_bot_token", return_value="tok123")
+    @patch("pa_telegram.client._read_offset", return_value=None)
+    def test_message_with_neither_text_nor_photo_skipped(self, _off, _tok, _cid):
+        updates = [{
+            "update_id": 1,
+            "message": {
+                "date": 1711000000,
+                "chat": {"id": 111},
+                "from": {"first_name": "Alice"},
+                "sticker": {"file_id": "sticker_xyz"},  # not handled
             },
         }]
         mock_resp = httpx.Response(200, json=_ok_response(updates))

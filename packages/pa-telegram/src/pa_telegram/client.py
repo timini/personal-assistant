@@ -12,6 +12,7 @@ from pa_core.config import PA_ROOT, get_secret, get_user_config
 TELEGRAM_API = "https://api.telegram.org"
 MAX_MESSAGE_LENGTH = 4096
 _OFFSET_FILE = PA_ROOT / "activity" / ".telegram_offset"
+_MEDIA_DIR = PA_ROOT / "activity" / "telegram_media"
 
 
 def _get_bot_token() -> str:
@@ -109,6 +110,35 @@ def send_message(text: str, parse_mode: str = "Markdown") -> list[dict]:
     return responses
 
 
+def _download_photo(file_id: str, target_path: Path) -> Path | None:
+    """Download a Telegram photo to ``target_path``.
+
+    Returns the path on success, or ``None`` on failure (non-fatal — the
+    caller still surfaces the message, just without an ``image_path``).
+    """
+    token = _get_bot_token()
+    meta_resp = httpx.get(
+        f"{TELEGRAM_API}/bot{token}/getFile",
+        params={"file_id": file_id},
+        timeout=30,
+    )
+    meta = meta_resp.json()
+    if not meta.get("ok"):
+        return None
+    file_path = meta["result"].get("file_path")
+    if not file_path:
+        return None
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    download = httpx.get(
+        f"{TELEGRAM_API}/file/bot{token}/{file_path}",
+        timeout=60,
+    )
+    if download.status_code != 200:
+        return None
+    target_path.write_bytes(download.content)
+    return target_path
+
+
 def _read_offset() -> int | None:
     """Read the last acknowledged update_id from the offset file."""
     if _OFFSET_FILE.exists():
@@ -153,8 +183,24 @@ def get_messages(limit: int = 100) -> list[dict]:
         # Filter to configured chat_id only
         if str(msg.get("chat", {}).get("id")) != chat_id:
             continue
-        text = msg.get("text")
-        if not text:
+        text = msg.get("text") or msg.get("caption") or ""
+        image_path: str | None = None
+
+        photo = msg.get("photo")
+        if photo:
+            largest = photo[-1]
+            file_id = largest.get("file_id")
+            if file_id:
+                ts = msg.get("date", 0)
+                dt_for_name = datetime.fromtimestamp(ts)
+                target = _MEDIA_DIR / (
+                    f"{dt_for_name.strftime('%Y-%m-%d')}_{update['update_id']}.jpg"
+                )
+                downloaded = _download_photo(file_id, target)
+                if downloaded is not None:
+                    image_path = str(downloaded)
+
+        if not text and not image_path:
             continue
 
         ts = msg.get("date", 0)
@@ -164,13 +210,16 @@ def get_messages(limit: int = 100) -> list[dict]:
         if from_user.get("last_name"):
             from_name += f" {from_user['last_name']}"
 
-        messages.append({
+        entry: dict = {
             "update_id": update["update_id"],
             "date": dt.strftime("%Y-%m-%d"),
             "time": dt.strftime("%H:%M"),
             "text": text,
             "from_name": from_name,
-        })
+        }
+        if image_path:
+            entry["image_path"] = image_path
+        messages.append(entry)
 
     return messages
 

@@ -28,7 +28,10 @@ def cmd_messages(args):
             print(json_mod.dumps(messages, indent=2))
         elif messages:
             for m in messages:
-                print(f"[{m['date']} {m['time']}] {m['from_name']}: {m['text']}")
+                line = f"[{m['date']} {m['time']}] {m['from_name']}: {m['text']}"
+                if m.get("image_path"):
+                    line += f"\n  📷 {m['image_path']}"
+                print(line)
         else:
             print("No new messages.")
 
