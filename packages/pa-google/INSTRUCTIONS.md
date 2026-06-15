@@ -7,7 +7,19 @@
 
 > **Principle: No email exists in isolation.** Always check if an email relates to something already tracked in Notion before deciding how to handle it. Extract every date, deadline, link, and action item — don't leave value on the table.
 
-1. Fetch ALL inbox emails (read + unread) — not just unread
+### Incremental triage — only handle what's NEW
+
+Triage works from the **last time triage was run**, so you don't re-surface mail already dealt with:
+
+1. **Start** every triage with `uv run pa-google emails --since-last` — this fetches only mail received since the last triage (using a stored cursor + Gmail `after:`). On the very first run (no cursor yet) it falls back to the full inbox and says so.
+2. Triage as below.
+3. **End** the pass with `uv run pa-google emails --mark-triaged` — stamps "now" as the new cursor.
+
+(Plain `uv run pa-google emails` still pulls the full inbox if you ever need everything. Cursor is stored in `activity/.state.json` under `last_email_triage`. Caveat: the cursor is stamped when you mark done, so anything arriving mid-session is picked up next run.)
+
+### Triage steps
+
+1. Fetch new inbox emails with `--since-last` (read + unread) — not just unread
 2. **Cross-reference each email against Notion tasks/projects** before categorising:
    - Search for related tasks by keyword (sender name, subject terms, project names)
    - If a related task exists, extract and act on ALL information in the email:

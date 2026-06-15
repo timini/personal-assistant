@@ -6,11 +6,19 @@ from email.mime.text import MIMEText
 from pa_core.cli_runner import run_gws
 
 
-def get_inbox_emails(limit: int = 50, unread_only: bool = False) -> list[dict]:
-    """Fetch emails in inbox. By default gets ALL inbox emails (read + unread) for full triage."""
+def get_inbox_emails(
+    limit: int = 50, unread_only: bool = False, after: int | None = None
+) -> list[dict]:
+    """Fetch emails in inbox. By default gets ALL inbox emails (read + unread) for full triage.
+
+    If `after` (Unix epoch seconds) is given, only return mail received after that
+    time (Gmail `after:` accepts epoch seconds) — used for incremental triage.
+    """
     q = "in:inbox"
     if unread_only:
         q += " is:unread"
+    if after:
+        q += f" after:{after}"
     result = run_gws("gmail", "users.messages", "list", {
         "userId": "me",
         "q": q,

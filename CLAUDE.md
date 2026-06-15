@@ -67,6 +67,8 @@ uv run pa-notion heatmap --page <id>           # Write to specific page
 # Google Workspace
 uv run pa-google briefing                      # Morning briefing (calendar + inbox emails)
 uv run pa-google emails                        # All inbox emails (default: all, not just unread)
+uv run pa-google emails --since-last           # Only emails received since the last triage (incremental)
+uv run pa-google emails --mark-triaged         # Stamp "now" as last-triaged (run at END of a triage pass)
 uv run pa-google emails --unread               # Only unread inbox emails
 uv run pa-google calendar                      # Today's events (all configured calendars)
 uv run pa-google calendar --days 7             # Next 7 days (all configured calendars)
@@ -116,6 +118,13 @@ uv run pa-ebay search "vintage bell tent"               # Basic search
 uv run pa-ebay search "vintage bell tent" --condition used --sort price --limit 20
 uv run pa-ebay search "vintage bell tent" --min-price 50 --max-price 500
 uv run pa-ebay search "vintage bell tent" --uk-only --json  # JSON output
+
+# NotebookLM explainers (audio/video/slides/report/mind map → consumed in the app)
+uv run pa-notebooklm login                              # First-run auth (opens browser)
+uv run pa-notebooklm explain doc.pdf --title "My Doc"   # All explainers from a document
+uv run pa-notebooklm explain https://x.y/article --only audio,video
+uv run pa-notebooklm explain a.pdf b.pdf --wait         # Multiple sources, block till done
+uv run pa-notebooklm list                               # List notebooks
 
 # Stubs (not yet implemented)
 uv run pa-whatsapp
@@ -198,6 +207,11 @@ client.update_page(child_id, {"Parent item": {"relation": [{"id": parent_id}]}})
 **Goal: Search and price research.** Programmatic eBay search for comparing listings, checking prices, and finding specific items. Uses the Browse API with client credentials OAuth (no user auth needed). Defaults to UK marketplace.
 - `client.py` — `search()` function with filters (condition, price range, sort, UK-only), OAuth token caching
 - `cli.py` — CLI entry point with `search` subcommand, text and JSON output
+
+### pa-notebooklm
+**Goal: stop reading, start listening/watching.** Drop documents (or URLs) in and generate NotebookLM audio overviews, video overviews, slide decks, reports and mind maps. Artifacts live inside the NotebookLM notebook — consumed in the NotebookLM phone app, nothing is downloaded. Wraps the unofficial `notebooklm-py` library (drives NotebookLM via Tim's logged-in Google/AI Ultra session). Undocumented APIs — personal-tool grade, can break.
+- `client.py` — `explain()` (create notebook + add sources + fire generations), `list_notebooks()`, `check_auth()`; async core `_explain()` takes an injected client for testing.
+- `cli.py` — `login`, `explain`, `list` subcommands.
 
 ### pa-whatsapp (stub)
 **Goal: Surface and act on important messages.** WhatsApp is a high-noise channel. The goal is to flag messages that need a response or action, and ignore the rest. Not yet implemented — needs WhatsApp API research.
@@ -324,7 +338,8 @@ At end of session or on request: `uv run pa-core briefing`
 
 > **Principle: No email exists in isolation.** Always check if an email relates to something already tracked in Notion before deciding how to handle it. Extract every date, deadline, link, and action item — don't leave value on the table.
 
-1. Fetch ALL inbox emails with `uv run pa-google emails` (gets read + unread, not just unread)
+0. **Check the time first** (`get_now()`), then start with `uv run pa-google emails --since-last` — this fetches only mail received since the last triage run (stored cursor + Gmail `after:`). First-ever run falls back to the full inbox. Use plain `uv run pa-google emails` only if you deliberately want the whole inbox.
+1. Triage the new emails (read + unread)
 2. For each email, **cross-reference against existing Notion tasks and projects**:
    - Search Notion tasks for related keywords (people, projects, events mentioned in the email)
    - If a matching task/project exists, treat this email as **context for that task** — not as a standalone item
@@ -337,7 +352,8 @@ At end of session or on request: `uv run pa-core briefing`
    - **Time-sensitive** → flag to user, or snooze if possible
 4. **If an email already has a matching Notion task, or you create one, always archive the email immediately.** Don't keep emails in the inbox as reminders — that's what Notion tasks are for.
 5. **When creating or updating a Notion task from an email, include a link to the email** in the task notes. Gmail links: `https://mail.google.com/mail/u/0/#inbox/<message_id>`
-6. Goal: inbox should be empty after every triage session
+6. **At the END of the triage pass, run `uv run pa-google emails --mark-triaged`** so the next session only sees genuinely new mail.
+7. Goal: inbox should be empty after every triage session
 
 ### Email attachments → Google Drive
 When processing emails with attachments (non-spam):

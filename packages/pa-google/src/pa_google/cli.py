@@ -10,6 +10,10 @@ from pa_google.calendar import (
     get_all_upcoming_events,
     check_calendars,
 )
+from pa_core.config import get_now
+from pa_core.state import get_state, set_state
+
+_TRIAGE_STATE_KEY = "last_email_triage"
 
 
 def _format_event(e: dict) -> str:
@@ -49,9 +53,25 @@ def cmd_briefing(args):
 
 
 def cmd_emails(args):
-    """List inbox emails."""
+    """List inbox emails (optionally only those since the last triage)."""
+    # --mark-triaged: stamp 'now' as the triage cursor and exit (no fetch).
+    if getattr(args, "mark_triaged", False):
+        now = get_now()
+        set_state(_TRIAGE_STATE_KEY, {"epoch": now["epoch"], "display": now["display"]})
+        print(f"Marked triaged at {now['display']}")
+        return
+
+    after = None
+    if getattr(args, "since_last", False):
+        last = get_state(_TRIAGE_STATE_KEY)
+        if last:
+            after = last["epoch"]
+            print(f"Showing emails since last triage ({last['display']})\n")
+        else:
+            print("No previous triage recorded — showing full inbox\n")
+
     try:
-        emails = get_inbox_emails(limit=args.limit, unread_only=args.unread)
+        emails = get_inbox_emails(limit=args.limit, unread_only=args.unread, after=after)
         if args.json:
             print(json.dumps(emails, indent=2))
         else:
@@ -116,6 +136,10 @@ def main():
 
     emails_p = sub.add_parser("emails", help="List emails")
     emails_p.add_argument("--unread", action="store_true", default=False, help="Only show unread emails")
+    emails_p.add_argument("--since-last", action="store_true", default=False,
+                          help="Only show emails received since the last triage was marked done")
+    emails_p.add_argument("--mark-triaged", action="store_true", default=False,
+                          help="Record 'now' as the last-triaged time (run at the end of a triage pass)")
     emails_p.add_argument("--limit", type=int, default=50)
     emails_p.add_argument("--json", action="store_true")
 

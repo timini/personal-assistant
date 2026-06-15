@@ -6,16 +6,17 @@ requires-python = ">=3.11"
 dependencies = []
 
 [dependency-groups]
-dev = ["pytest>=8.0", "pytest-cov>=5.0", "pytest-mock>=3.14"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "pytest-mock>=3.14", "pytest-asyncio>=0.24"]
 
 [tool.uv.workspace]
 members = ["packages/*"]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/pa-telegram/tests", "packages/pa-core/tests"]
+testpaths = ["packages/pa-telegram/tests", "packages/pa-core/tests", "packages/pa-notebooklm/tests", "packages/pa-google/tests"]
+asyncio_mode = "auto"
 
 [tool.coverage.run]
-source = ["pa_telegram", "pa_core"]
+source = ["pa_telegram", "pa_core", "pa_notebooklm"]
 
 [tool.coverage.report]
 fail_under = 90

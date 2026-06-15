@@ -107,5 +107,6 @@ def get_now() -> dict:
         "time": now.strftime("%H:%M"),
         "timezone": tz_name,
         "period": period,
+        "epoch": int(now.timestamp()),
         "display": now.strftime("%A %d %B %Y, %H:%M %Z"),
     }
