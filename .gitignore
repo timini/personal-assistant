@@ -27,4 +27,3 @@ build/
 
 # Session artifacts (gws drive download/export temp files)
 download.*
-activity/state/

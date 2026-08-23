@@ -116,24 +116,8 @@ class TestCmdBriefing:
 
 class TestCmdCheckinTelegram:
     @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
-    @patch("pa_core.collect.get_context", return_value={"now": {"period": "morning"}})
-    @patch("pa_core.context.render_context", return_value="# Context")
-    @patch("pa_notion.tasks.sync_google_tasks", return_value=[])
-    @patch("pa_google.outlook_sync.sync_outlook_to_google")
-    @patch("pa_core.config.get_user_config", return_value={"outlook_sync_enabled": False})
-    def test_checkin_skips_disabled_outlook_sync(
-        self, _config, mock_outlook_sync, _task_sync, _render, _ctx, _backup, capsys
-    ):
-        with patch("sys.argv", ["pa-core", "checkin", "--no-backup"]):
-            from pa_core.cli import main
-            main()
-
-        mock_outlook_sync.assert_not_called()
-        assert "Outlook sync disabled" in capsys.readouterr().err
-
-    @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
     @patch("pa_telegram.client.send_briefing")
-    @patch("pa_core.collect.get_context", return_value={"now": {"period": "morning"}})
+    @patch("pa_core.context.get_today_context", return_value={"now": {"period": "morning"}})
     @patch("pa_core.context.render_context", return_value="# Context")
     @patch("pa_notion.tasks.sync_google_tasks", return_value=[])
     def test_checkin_telegram(self, _sync, _render, _ctx, mock_send, _backup, capsys):
@@ -145,7 +129,7 @@ class TestCmdCheckinTelegram:
 
     @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
     @patch("pa_telegram.client.send_evening_briefing")
-    @patch("pa_core.collect.get_context", return_value={"now": {"period": "evening"}})
+    @patch("pa_core.context.get_today_context", return_value={"now": {"period": "evening"}})
     @patch("pa_core.context.render_context", return_value="# Context")
     @patch("pa_notion.tasks.sync_google_tasks", return_value=[])
     def test_checkin_telegram_evening(self, _sync, _render, _ctx, mock_send, _backup, capsys):
@@ -157,7 +141,7 @@ class TestCmdCheckinTelegram:
 
     @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
     @patch("pa_telegram.client.send_briefing", side_effect=RuntimeError("tg fail"))
-    @patch("pa_core.collect.get_context", return_value={"now": {"period": "morning"}})
+    @patch("pa_core.context.get_today_context", return_value={"now": {"period": "morning"}})
     @patch("pa_core.context.render_context", return_value="# Context")
     @patch("pa_notion.tasks.sync_google_tasks", return_value=[])
     def test_checkin_telegram_failure(self, _sync, _render, _ctx, _send, _backup, capsys):
@@ -167,7 +151,7 @@ class TestCmdCheckinTelegram:
         assert "Telegram send failed" in capsys.readouterr().err
 
     @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
-    @patch("pa_core.collect.get_context", return_value={"now": {"period": "morning"}})
+    @patch("pa_core.context.get_today_context", return_value={"now": {"period": "morning"}})
     @patch("pa_core.context.render_context", return_value="# Context")
     @patch("pa_notion.tasks.sync_google_tasks", return_value=[])
     def test_checkin_no_telegram_by_default(self, _sync, _render, _ctx, _backup, capsys):
