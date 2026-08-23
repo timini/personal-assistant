@@ -50,9 +50,16 @@ def cmd_briefing(args):
 def cmd_context(args):
     import json
 
-    from pa_core.context import get_today_context, render_context
+    from pa_core.collect import collect, get_context
+    from pa_core.context import render_context
 
-    ctx = get_today_context()
+    # Served from the dated state file when it is fresh enough, so a briefing
+    # and the sessions that follow it share one fetch. --refresh forces a
+    # refetch; --max-age 0 has the same effect.
+    if getattr(args, "refresh", False):
+        ctx = collect()
+    else:
+        ctx = get_context(max_age_minutes=getattr(args, "max_age", 60))
     if args.json:
         print(json.dumps(ctx, indent=2, default=str))
     else:
@@ -107,10 +114,33 @@ def cmd_checkin(args):
     except Exception as exc:
         print(f"  Task sync failed: {exc}", file=sys.stderr)
 
-    # 2. Fetch full context
+    # 1b. Sync work Outlook calendar → Google "Work" calendar (so work events show in context).
+    # Degrades gracefully: needs Chrome-free local Legacy Outlook open; never breaks the checkin.
+    from pa_core.config import get_user_config
+    if not get_user_config().get("outlook_sync_enabled", True):
+        print("Outlook sync disabled in user.yaml.", file=sys.stderr)
+    else:
+        print("Syncing work Outlook calendar...", file=sys.stderr)
+        try:
+            from pa_google.outlook_sync import sync_outlook_to_google
+            from pa_core.daily_log import log_event
+            res = sync_outlook_to_google(days=14)
+            print(f"  Outlook → Day Job: +{res['added']} / ~{res['updated']} / -{res['removed']} "
+                  f"({res['total']} events)", file=sys.stderr)
+            if res["added"] or res["updated"] or res["removed"]:
+                log_event("calendar", "synced",
+                          f"Outlook → Google Day Job: +{res['added']} updated {res['updated']} removed {res['removed']}")
+        except Exception as exc:
+            print(f"  Outlook sync skipped: {exc}", file=sys.stderr)
+
+    # 2. Fetch full context.
+    # Checkin runs right after the syncs above, so it wants what they just
+    # wrote — a short window rather than the usual hour. Anything that follows
+    # this morning then reuses the file checkin leaves behind.
     print("Fetching today's context...", file=sys.stderr)
-    from pa_core.context import get_today_context, render_context
-    ctx = get_today_context()
+    from pa_core.collect import get_context
+    from pa_core.context import render_context
+    ctx = get_context(max_age_minutes=5)
 
     print("", file=sys.stderr)  # blank line separator
 
@@ -214,6 +244,9 @@ def main():
     # context
     cp = sub.add_parser("context", help="Today's full context (calendar + emails + tasks + habits + weather)")
     cp.add_argument("--json", action="store_true", help="Output as JSON")
+    cp.add_argument("--refresh", action="store_true", help="Force a refetch, ignoring the cached state file")
+    cp.add_argument("--max-age", type=int, default=60, metavar="MINS",
+                    help="Reuse the cached state file if newer than this (default 60)")
 
     # log
     lp = sub.add_parser("log", help="Log an event to today's daily log")
