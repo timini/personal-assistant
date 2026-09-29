@@ -1,0 +1,16 @@
+[project]
+name = "pa-notebooklm"
+version = "0.1.0"
+description = "PA NotebookLM integration — turn documents into audio/video/explainers"
+requires-python = ">=3.12"
+dependencies = ["pa-core", "notebooklm-py[browser]>=0.1.4"]
+
+[project.scripts]
+pa-notebooklm = "pa_notebooklm.cli:main"
+
+[tool.uv.sources]
+pa-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

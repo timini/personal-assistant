@@ -1,0 +1,16 @@
+[project]
+name = "pa-health"
+version = "0.1.0"
+description = "PA health integration — sleep, resting HR, HRV and recovery from Garmin"
+requires-python = ">=3.12"
+dependencies = ["pa-core", "garminconnect>=0.3.11", "curl_cffi>=0.15.0"]
+
+[project.scripts]
+pa-health = "pa_health.cli:main"
+
+[tool.uv.sources]
+pa-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

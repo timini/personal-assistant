@@ -1,0 +1,16 @@
+[project]
+name = "pa-browser"
+version = "0.1.0"
+description = "PA browser bridge — drive a dedicated persistent Chrome profile via Playwright (AppleScript path kept as fallback)"
+requires-python = ">=3.12"
+dependencies = ["pa-core", "playwright>=1.44"]
+
+[project.scripts]
+pa-browser = "pa_browser.cli:main"
+
+[tool.uv.sources]
+pa-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

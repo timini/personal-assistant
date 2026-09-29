@@ -1,0 +1,40 @@
+# User-specific secrets and config
+.env
+user.yaml
+user-instructions.md
+client_secret*.json
+
+# Activity logs (per-user history)
+activity/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+.coverage
+
+# Session artifacts (gws drive download/export temp files)
+download.*
+output/
+node_modules/
+
+# Private context, local agent settings and working artifacts
+/private/
+/tmp/
+/.codex/
+.claude/settings.local.json
+.claude/RESUME.md
+.env.*
+!.env.example
