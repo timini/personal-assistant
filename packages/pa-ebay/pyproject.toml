@@ -1,0 +1,16 @@
+[project]
+name = "pa-ebay"
+version = "0.1.0"
+description = "PA eBay integration — search and price research via Browse API"
+requires-python = ">=3.11"
+dependencies = ["pa-core", "httpx>=0.27"]
+
+[project.scripts]
+pa-ebay = "pa_ebay.cli:main"
+
+[tool.uv.sources]
+pa-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
