@@ -1,38 +1,39 @@
-# PA — Personal Assistant CLI Toolkit
+# PA: Personal Assistant CLI Toolkit
 
-A modular personal assistant built as a Python uv workspace. Each integration is a standalone CLI tool that Claude Code, Codex, or another coding agent can invoke via `uv run <command>`. No MCP servers — just Python packages.
+A modular personal assistant built as a Python uv workspace. Each integration is a standalone CLI tool that Claude Code, Codex, or another coding agent can invoke via `uv run <command>`. No MCP servers, just Python packages.
 
 ## Features
 
-- **Notion** — Task management (list, add, update) via the Notion API
-- **Google Workspace** — Email and calendar access via the `gws` CLI
-- **Google Drive backup** — Automatic backup of personal/gitignored files to Drive
-- **Daily briefing** — Generated daily summary from calendar, tasks, and event logs
-- **Event logging** — Per-day JSON event log tracking actions across all integrations
-- **Plugin architecture** — Add new integrations by dropping in a package
-- **Activity logs** — Per-plugin event tracking so your AI assistant maintains context across sessions
-- **No hardcoded config** — All user details come from `.env` and `user.yaml`, generated at setup
+- **Notion**: Task management (list, add, update) via the Notion API
+- **Google Workspace**: Email and calendar access via the `gws` CLI
+- **Google Drive backup**: Automatic backup of personal/gitignored files to Drive
+- **Daily briefing**: Generated daily summary from calendar, tasks, and event logs
+- **Event logging**: Per-day JSON event log tracking actions across all integrations
+- **Plugin architecture**: Add new integrations by dropping in a package
+- **Shared memory**: One plain-file store (`pa-core memory`) for preferences, lessons, people, facts, projects and open follow-ups, used by every agent harness
+- **No hardcoded config**: All user details come from `.env` and `user.yaml`, generated at setup
 
 ## Privacy: public toolkit, private user context
 
-Treat every tracked file as public. Instructions must describe reusable behavior without identifying the user. Personal information belongs only in **ignored, untracked** files—even when it is not a password or secret.
+Treat every tracked file as public. Instructions must describe reusable behavior without identifying the user. Personal information belongs only in **ignored, untracked** files, even when it is not a password or secret.
 
 | Location | Contents | Git |
 |---|---|---|
 | `AGENTS.md`, package instructions, skills, README | Generic workflows and technical guidance; synthetic examples | Tracked |
 | `user-instructions.md` | Personal preferences, contacts, household rules and signatures | Ignored |
 | `user.yaml`, `.env` | User configuration, resource IDs and credentials | Ignored |
-| `private/` | Additional private context and historical instruction snapshots | Ignored |
+| `private/memory/` | The assistant's memory store: entries, archive and journal | Ignored |
+| `private/` | Other private context and historical instruction snapshots | Ignored |
 | `activity/`, `output/`, `tmp/`, `download.*` | Logs, downloads and working artifacts | Ignored |
 | `.codex/`, `.claude/settings.local.json`, `.claude/RESUME.md` | Local agent configuration and session notes | Ignored |
 
-When asked to “remember” a personal fact or update personal instructions, write it to `user-instructions.md` or a referenced file under `private/`. Only put the reusable rule in public instructions. Do not include real names, employer details, addresses, contacts, family/class details, appointments, health readings, payment information or account IDs in examples, test fixtures, screenshots, filenames, commit messages or PR descriptions.
+When asked to “remember” a personal fact or preference, save it with `uv run pa-core memory add ...` (stored under ignored `private/memory/`). Only put the reusable rule in public instructions. Do not include real names, employer details, addresses, contacts, family/class details, appointments, health readings, payment information or account IDs in examples, test fixtures, screenshots, filenames, commit messages or PR descriptions.
 
 ### Before committing or pushing
 
 1. Confirm private destinations are ignored and untracked:
    ```bash
-   git check-ignore -v user-instructions.md user.yaml .env private/health-preferences.md
+   git check-ignore -v user-instructions.md user.yaml .env private/memory
    git ls-files -- user-instructions.md user.yaml .env private/ activity/ .codex/ .claude/settings.local.json .claude/RESUME.md
    ```
    The first command should show ignore rules; the second should produce no output.
@@ -46,7 +47,7 @@ Adding an ignore rule does **not** untrack existing files or erase earlier commi
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.12+
 - [uv](https://docs.astral.sh/uv/) package manager
 - For Google: [`gws` CLI](https://github.com/nicholasgasior/gws) installed and authenticated
 - For Notion: A Notion integration with access to your workspace
@@ -88,10 +89,16 @@ uv run pa-google calendar --days 7     # Next 7 days
 uv run pa-google backup                # Upload tarball to PA-Backups folder
 uv run pa-google backup --keep 10      # Keep 10 backups instead of default 7
 
+# Session start and memory
+uv run pa-core checkin                 # Context, memory brief and the morning/evening prompt
+uv run pa-core memory brief            # Due follow-ups, rules, lessons, people, recent journal
+uv run pa-core memory add lesson "gws scopes" "Re-auth gws with every service"
+uv run pa-core memory search "shared list"
+
 # Daily briefing & event logging
 uv run pa-core briefing                # Print today's daily briefing
 uv run pa-core briefing --save         # Save briefing to activity/briefings/
-uv run pa-core briefing --save --backup  # Save briefing + backup to Drive
+uv run pa-core briefing --save --no-backup  # Save briefing, skip Drive backup
 uv run pa-core log email archived "Archived 5 newsletters"
 uv run pa-core log task created "Created task: Pay bill" --project "Admin / Finance"
 ```
@@ -103,15 +110,16 @@ Most list commands support `--json` for machine-readable output.
 ```
 PA/
 ├── packages/
-│   ├── pa-core/        # Shared: config, CLI runner, logging, setup
+│   ├── pa-core/        # Shared: config, memory, context, briefings, reports
 │   ├── pa-google/      # Google Workspace (wraps gws CLI)
 │   ├── pa-notion/      # Notion API client + task management
-│   ├── pa-whatsapp/    # WhatsApp (stub — future)
-│   └── pa-finance/     # Finance / open banking (stub — future)
+│   └── pa-health/      # Garmin health and activity data
+├── .claude/skills/     # Shared skills (Codex sees them via .agents/skills symlinks)
 ├── scripts/            # Standalone scripts (daily briefing, weekly review)
-├── activity/           # Per-user activity logs (gitignored)
+├── activity/           # Daily metrics log, briefings, reports (gitignored)
+├── private/            # Memory store and private context (gitignored)
 ├── .env.example        # Template for required environment variables
-├── user.yaml           # User config — generated at setup (gitignored)
+├── user.yaml           # User config, generated at setup (gitignored)
 └── pyproject.toml      # uv workspace root
 ```
 
@@ -120,18 +128,18 @@ PA/
 1. Create `packages/pa-<name>/` with a `pyproject.toml` depending on `pa-core`
 2. Implement `client.py` (core logic) and `cli.py` (entry point)
 3. Register the CLI in `[project.scripts]`
-4. Create `activity/log.md` for the plugin
-5. Run `uv sync`
+4. Add an `AGENTS.md` describing how to use it
+5. Run `uv sync --all-packages`
 
 See existing packages for the pattern.
 
 ## Configuration
 
-### `.env` (secrets — gitignored)
+### `.env` (secrets, gitignored)
 
 See [`.env.example`](.env.example) for all supported keys.
 
-### `user.yaml` (user config — gitignored)
+### `user.yaml` (user config, gitignored)
 
 ```yaml
 name: Your Name
@@ -147,7 +155,7 @@ projects:
 
 ## How It Works with AI Assistants
 
-This toolkit supports both Claude Code and Codex. The assistant calls CLI commands via the shell, reads their output, and uses the activity logs to maintain context across sessions. `AGENTS.md` is the canonical handbook; `CLAUDE.md` imports it for backward compatibility. Package-specific guidance follows the same `AGENTS.md` plus `CLAUDE.md` wrapper pattern.
+This toolkit supports both Claude Code and Codex. The assistant calls CLI commands via the shell, reads their output, and starts each session with `uv run pa-core memory brief`, so both harnesses share the same memory. Scheduling, chat and browser control come from the harness. `AGENTS.md` is the canonical handbook; `CLAUDE.md` imports it for backward compatibility. Package-specific guidance follows the same `AGENTS.md` plus `CLAUDE.md` wrapper pattern.
 
 Local agent settings belong in ignored `.codex/` or `.claude/settings.local.json`. Select permissions appropriate to your environment; repository documentation does not override runtime permissions or user authorization.
 

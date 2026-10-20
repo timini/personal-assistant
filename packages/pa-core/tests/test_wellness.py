@@ -159,7 +159,7 @@ def test_a_daily_habit_already_done_today_is_not_asked_again():
 
 
 def test_a_weekly_habit_is_not_asked_early_in_the_week():
-    """Asking on Monday about a weekly habit is noise that trains him to ignore it."""
+    """Asking on Monday about a weekly habit is noise that trains the user to ignore it."""
     h = {"name": "Deep clean", "cadence": "weekly"}
     assert habit_due(h, [], today="2026-08-24") is False   # Monday
 

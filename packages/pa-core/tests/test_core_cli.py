@@ -55,25 +55,6 @@ class TestCmdBriefing:
             main()
         assert "Backup failed" in capsys.readouterr().err
 
-    @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
-    @patch("pa_telegram.client.send_briefing")
-    @patch("pa_core.briefing.generate_briefing", return_value="# Morning")
-    def test_briefing_telegram(self, _gen, mock_send, _backup, capsys):
-        with patch("sys.argv", ["pa-core", "briefing", "--telegram"]):
-            from pa_core.cli import main
-            main()
-        mock_send.assert_called_once()
-        assert "Briefing sent" in capsys.readouterr().out
-
-    @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
-    @patch("pa_telegram.client.send_briefing", side_effect=RuntimeError("tg fail"))
-    @patch("pa_core.briefing.generate_briefing", return_value="# Morning")
-    def test_briefing_telegram_failure(self, _gen, _send, _backup, capsys):
-        with patch("sys.argv", ["pa-core", "briefing", "--telegram"]):
-            from pa_core.cli import main
-            main()
-        assert "Telegram send failed" in capsys.readouterr().err
-
     # Evening briefing
     @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
     @patch("pa_core.briefing.generate_evening_briefing", return_value="# Evening")
@@ -91,75 +72,49 @@ class TestCmdBriefing:
             main()
         mock_save.assert_called_once()
 
-    @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
-    @patch("pa_telegram.client.send_evening_briefing")
-    @patch("pa_core.briefing.generate_evening_briefing", return_value="# Evening")
-    def test_evening_briefing_telegram(self, _gen, mock_send, _backup, capsys):
-        with patch("sys.argv", ["pa-core", "briefing", "--evening", "--telegram"]):
-            from pa_core.cli import main
-            main()
-        mock_send.assert_called_once()
-
-    @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
-    @patch("pa_telegram.client.send_evening_briefing", side_effect=RuntimeError("tg fail"))
-    @patch("pa_core.briefing.generate_evening_briefing", return_value="# Evening")
-    def test_evening_briefing_telegram_failure(self, _gen, _send, _backup, capsys):
-        with patch("sys.argv", ["pa-core", "briefing", "--evening", "--telegram"]):
-            from pa_core.cli import main
-            main()
-        assert "Telegram send failed" in capsys.readouterr().err
-
-
 # ---------------------------------------------------------------------------
-# cmd_checkin — Telegram flag
+# cmd_checkin
 # ---------------------------------------------------------------------------
 
-class TestCmdCheckinTelegram:
-    @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
-    @patch("pa_telegram.client.send_briefing")
-    @patch("pa_core.context.get_today_context", return_value={"now": {"period": "morning"}})
+_CTX = {"now": {"period": "morning", "date": "2026-01-05"}, "calendar": [], "due_soon": [], "urgent": []}
+
+
+class TestCmdCheckin:
+    @patch("pa_core.memory.render_brief", return_value="## Memory brief")
+    @patch("pa_core.context.get_today_context", return_value=_CTX)
     @patch("pa_core.context.render_context", return_value="# Context")
-    @patch("pa_notion.tasks.sync_google_tasks", return_value=[])
-    def test_checkin_telegram(self, _sync, _render, _ctx, mock_send, _backup, capsys):
+    def test_checkin_prints_morning_prompt_and_memory(self, _render, _ctx, _brief, capsys):
+        with patch("sys.argv", ["pa-core", "checkin", "--no-backup"]):
+            from pa_core.cli import main
+            main()
+        out = capsys.readouterr().out
+        assert "# Context" in out
+        assert "## Memory brief" in out
+        assert "Reply with:" in out
+
+    @patch("pa_core.memory.render_brief", return_value="")
+    @patch("pa_core.context.get_today_context",
+           return_value={**_CTX, "now": {"period": "evening", "date": "2026-01-05"}})
+    @patch("pa_core.context.render_context", return_value="# Context")
+    def test_checkin_evening_has_no_morning_prompt(self, _render, _ctx, _brief, capsys):
+        with patch("sys.argv", ["pa-core", "checkin", "--no-backup"]):
+            from pa_core.cli import main
+            main()
+        out = capsys.readouterr().out
+        assert "Reply with:" not in out
+        assert "Evening" in out
+
+    def test_checkin_has_no_telegram_flag(self):
         with patch("sys.argv", ["pa-core", "checkin", "--telegram"]):
             from pa_core.cli import main
-            main()
-        mock_send.assert_called_once()
-        assert "Briefing sent" in capsys.readouterr().out
-
-    @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
-    @patch("pa_telegram.client.send_evening_briefing")
-    @patch("pa_core.context.get_today_context", return_value={"now": {"period": "evening"}})
-    @patch("pa_core.context.render_context", return_value="# Context")
-    @patch("pa_notion.tasks.sync_google_tasks", return_value=[])
-    def test_checkin_telegram_evening(self, _sync, _render, _ctx, mock_send, _backup, capsys):
-        with patch("sys.argv", ["pa-core", "checkin", "--evening", "--telegram"]):
-            from pa_core.cli import main
-            main()
-        mock_send.assert_called_once()
-        assert "Evening briefing sent" in capsys.readouterr().out
-
-    @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
-    @patch("pa_telegram.client.send_briefing", side_effect=RuntimeError("tg fail"))
-    @patch("pa_core.context.get_today_context", return_value={"now": {"period": "morning"}})
-    @patch("pa_core.context.render_context", return_value="# Context")
-    @patch("pa_notion.tasks.sync_google_tasks", return_value=[])
-    def test_checkin_telegram_failure(self, _sync, _render, _ctx, _send, _backup, capsys):
-        with patch("sys.argv", ["pa-core", "checkin", "--telegram"]):
-            from pa_core.cli import main
-            main()
-        assert "Telegram send failed" in capsys.readouterr().err
-
-    @patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"})
-    @patch("pa_core.context.get_today_context", return_value={"now": {"period": "morning"}})
-    @patch("pa_core.context.render_context", return_value="# Context")
-    @patch("pa_notion.tasks.sync_google_tasks", return_value=[])
-    def test_checkin_no_telegram_by_default(self, _sync, _render, _ctx, _backup, capsys):
-        with patch("pa_telegram.client.send_briefing") as mock_send:
-            with patch("sys.argv", ["pa-core", "checkin"]):
-                from pa_core.cli import main
+            with pytest.raises(SystemExit):
                 main()
-            mock_send.assert_not_called()
+
+    def test_schedule_checkins_command_removed(self):
+        with patch("sys.argv", ["pa-core", "schedule-checkins"]):
+            from pa_core.cli import main
+            with pytest.raises(SystemExit):
+                main()
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +129,7 @@ class TestCmdLog:
             from pa_core.cli import main
             main()
         mock_log.assert_called_once_with(
-            category="email", action="archived", summary="Cleaned inbox", project=None,
+            category="email", action="archived", summary="Cleaned inbox", project=None, details=None, links=None,
         )
         assert "Logged:" in capsys.readouterr().out
 
@@ -185,7 +140,7 @@ class TestCmdLog:
             from pa_core.cli import main
             main()
         mock_log.assert_called_once_with(
-            category="task", action="created", summary="New task", project="Day Job",
+            category="task", action="created", summary="New task", project="Day Job", details=None, links=None,
         )
 
 
@@ -200,3 +155,40 @@ class TestMainNoCommand:
             main()
         out = capsys.readouterr().out
         assert "usage" in out.lower() or "setup" in out.lower()
+
+
+# ---------------------------------------------------------------------------
+# now and log options
+# ---------------------------------------------------------------------------
+
+class TestCmdNow:
+    @patch("pa_core.config.get_now", return_value={"date": "2026-10-20", "display": "Tue 20 Oct 09:00"})
+    def test_now_prints_json(self, _now, capsys):
+        import json
+        with patch("sys.argv", ["pa-core", "now"]):
+            from pa_core.cli import main
+            main()
+        assert json.loads(capsys.readouterr().out)["date"] == "2026-10-20"
+
+
+class TestCmdLogOptions:
+    @patch("pa_core.daily_log.log_event")
+    def test_log_passes_details_and_links(self, mock_log, capsys):
+        mock_log.return_value = {"category": "task", "action": "created", "summary": "s"}
+        argv = ["pa-core", "log", "task", "created", "s", "--details", '{"id": "t1"}',
+                "--link", "task=https://notion.so/t1", "--link", "email=https://mail/x"]
+        with patch("sys.argv", argv):
+            from pa_core.cli import main
+            main()
+        kwargs = mock_log.call_args.kwargs
+        assert kwargs["details"] == {"id": "t1"}
+        assert kwargs["links"] == {"task": "https://notion.so/t1", "email": "https://mail/x"}
+
+    def test_log_rejects_unknown_category_before_writing(self, capsys):
+        with patch("sys.argv", ["pa-core", "log", "nonsense", "x", "y"]), \
+             patch("pa_core.daily_log.log_event") as mock_log:
+            from pa_core.cli import main
+            with pytest.raises(SystemExit):
+                main()
+        mock_log.assert_not_called()
+        assert "habit" in capsys.readouterr().err

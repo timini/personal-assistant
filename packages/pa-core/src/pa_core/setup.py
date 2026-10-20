@@ -44,10 +44,6 @@ def setup():
         plugins.append("pa-google")
     if _ask_yes_no("Enable Notion (task management)?"):
         plugins.append("pa-notion")
-    if _ask_yes_no("Enable WhatsApp?", default=False):
-        plugins.append("pa-whatsapp")
-    if _ask_yes_no("Enable Finance (Lunchflow)?", default=False):
-        plugins.append("pa-finance")
 
     print("\n--- Projects ---")
     print("Add your projects (enter empty name to finish):")

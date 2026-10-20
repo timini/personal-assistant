@@ -3,7 +3,7 @@
     uv run python scripts/weekly_flow_email.py           # send it
     uv run python scripts/weekly_flow_email.py --dry-run # print the HTML, send nothing
 
-Run weekly by a LaunchAgent (com.pa.weekly-flow-report). Deliberately does the
+Schedule it weekly in the agent harness if wanted. Deliberately does the
 Notion query and the rendering in plain Python with no model in the loop — this
 is deterministic collation, per ADR 0001.
 """

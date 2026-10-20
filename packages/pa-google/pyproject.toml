@@ -3,7 +3,7 @@ name = "pa-google"
 version = "0.1.0"
 description = "PA Google Workspace integration — wraps gws CLI"
 requires-python = ">=3.12"
-dependencies = ["pa-core"]
+dependencies = ["pa-core", "playwright>=1.44", "beautifulsoup4>=4.12", "pypdf>=5.0", "openpyxl>=3.1"]
 
 [project.scripts]
 pa-google = "pa_google.cli:main"

@@ -16,7 +16,7 @@ Wraps `garminconnect` and normalises daily data through `get_health(date_str)`. 
 
 `abnormal_hr` contains device alerts with `date`, `time`, `bpm`, `threshold` and `ts`. Follow private preferences about asking for context. Use `unlabelled_hr_alerts()` to avoid repeated questions and store responses only in private wellness logs.
 
-For date ranges, use `client.get_activities_by_date(start, end)` and `normalise_activity`. Compare data across appropriate periods and state missing coverage.
+For date ranges, use `uv run pa-health activities --from DATE --to DATE` (or `get_activities_range()`). Compare data across appropriate periods and state missing coverage.
 
 ## Authentication and privacy
 
@@ -24,13 +24,9 @@ Tokens live in `_token_dir()` and refresh through `_authenticated_client()`. Kee
 
 ## Usage
 
-```python
-from pa_health.client import get_health
-
-health = get_health()
-if health["ok"]:
-    for activity in health["activities"]:
-        print(activity["type"], activity["distance_km"])
+```bash
+uv run pa-health day [--date YYYY-MM-DD] [--json]                 # one day, normalised by get_health()
+uv run pa-health activities [--days 7 | --from DATE --to DATE] [--json]
 ```
 
 Command output contains private data: do not paste it into tracked documentation or public issues.

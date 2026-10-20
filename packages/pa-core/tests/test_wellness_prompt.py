@@ -12,12 +12,12 @@ from pa_core.prompts import build_evening_prompt, build_morning_prompt, shortlis
 
 
 FAKE_TASKS = [
-    {"title": "Submit AMP abstract", "lane": "🔥 Live", "due_date": "2026-08-30", "priority": "High"},
-    {"title": "Pay TTC invoice", "lane": "", "due_date": "2026-08-18", "priority": "High"},
+    {"title": "Submit conference abstract", "lane": "🔥 Live", "due_date": "2026-08-30", "priority": "High"},
+    {"title": "Pay supplier invoice", "lane": "", "due_date": "2026-08-18", "priority": "High"},
     {"title": "Fix utility room door", "lane": "", "due_date": "", "priority": "Medium"},
     {"title": "Order the ducting", "lane": "", "due_date": "", "priority": "Medium"},
     {"title": "Example project internet", "lane": "", "due_date": "", "priority": "Low"},
-    {"title": "KonMari books", "lane": "🅿️ Parked", "due_date": "", "priority": "Low"},
+    {"title": "Sort bookshelf", "lane": "🅿️ Parked", "due_date": "", "priority": "Low"},
     {"title": "Deep clean", "lane": "", "due_date": "2026-08-25", "priority": "Medium"},
 ]
 
@@ -28,39 +28,39 @@ def test_shortlist_is_capped_so_it_never_overwhelms():
 
 
 def test_live_lane_leads_then_recent_overdue():
-    """Deliberate change: Live leads. Work he has chosen beats work he is being
-    reminded he failed to do. Recent overdue still ranks above everything else."""
+    """Deliberate change: Live leads. Work the user has chosen beats work they are
+    being reminded they failed to do. Recent overdue still ranks above everything else."""
     titles = [t["title"] for t in shortlist(FAKE_TASKS, today="2026-08-24")]
-    assert titles[0] == "Submit AMP abstract"          # Live
-    assert titles[1] == "Pay TTC invoice"              # overdue 6 days
+    assert titles[0] == "Submit conference abstract"          # Live
+    assert titles[1] == "Pay supplier invoice"              # overdue 6 days
 
 
 def test_live_lane_ranks_above_undated_backlog():
     titles = [t["title"] for t in shortlist(FAKE_TASKS, today="2026-08-24")]
-    assert titles.index("Submit AMP abstract") < titles.index("Fix utility room door")
+    assert titles.index("Submit conference abstract") < titles.index("Fix utility room door")
 
 
 def test_parked_tasks_never_appear():
     titles = [t["title"] for t in shortlist(FAKE_TASKS, today="2026-08-24")]
-    assert "KonMari books" not in titles
+    assert "Sort bookshelf" not in titles
 
 
 def test_morning_prompt_carries_the_schedule_and_the_shortlist():
     text = build_morning_prompt(
-        schedule=[{"time": "16:00", "summary": "Therapy", "calendar": None}],
+        schedule=[{"time": "16:00", "summary": "Dentist", "calendar": None}],
         tasks=FAKE_TASKS,
         today="2026-08-24",
     )
-    assert "Therapy" in text
+    assert "Dentist" in text
     assert "16:00" in text
-    assert "Pay TTC invoice" in text
+    assert "Pay supplier invoice" in text
 
 
 def test_morning_prompt_asks_for_mood_energy_and_an_intention():
     text = build_morning_prompt(schedule=[], tasks=[], today="2026-08-24").lower()
     assert "mood" in text
     assert "energy" in text
-    # the anti-procrastination question, in his words
+    # the anti-procrastination question, in the user's words
     assert "get going" in text
 
 
@@ -101,28 +101,46 @@ def test_evening_prompt_does_not_nag_when_every_habit_is_done():
     assert "Exercise" not in text
 
 
+def test_evening_prompt_handles_real_daily_log_events_without_a_date_field():
+    """Daily log files own the date; their individual event dicts do not."""
+    habits = [{"name": "Medication", "emoji": "💊", "cadence": "daily"}]
+    events = [{"category": "habit", "action": "completed", "summary": "Medication"}]
+    text = build_evening_prompt(habits=habits, events=events, today="2026-08-24")
+    assert "Medication" not in text
+
+
+def test_dedicated_gratitude_and_planning_questions_are_not_duplicated_as_habits():
+    habits = [
+        {"name": "Gratitude", "emoji": "🙏", "cadence": "daily"},
+        {"name": "Day planning", "emoji": "🗓️", "cadence": "daily"},
+    ]
+    text = build_evening_prompt(habits=habits, events=[], today="2026-08-24")
+    assert text.lower().count("grat") == 1
+    assert "Day planning" not in text
+
+
 # --- the shortlist must motivate, not accuse ---------------------------------
 
 STALE = [
-    {"title": "Cut edge noggins", "lane": "", "due_date": "2026-06-15", "priority": "Medium"},
-    {"title": "Pay Toby 400", "lane": "", "due_date": "2026-06-30", "priority": "Medium"},
-    {"title": "AMP speaker tasks", "lane": "🔥 Live", "due_date": "2026-08-30", "priority": "High"},
-    {"title": "Chase school re violin", "lane": "", "due_date": "2026-08-25", "priority": "Medium"},
+    {"title": "Fix fence panel", "lane": "", "due_date": "2026-06-15", "priority": "Medium"},
+    {"title": "Pay window cleaner", "lane": "", "due_date": "2026-06-30", "priority": "Medium"},
+    {"title": "Conference speaker tasks", "lane": "🔥 Live", "due_date": "2026-08-30", "priority": "High"},
+    {"title": "Chase school re club form", "lane": "", "due_date": "2026-08-25", "priority": "Medium"},
     {"title": "Send the key back", "lane": "", "due_date": "2026-08-18", "priority": "Medium"},
 ]
 
 
 def test_live_lane_leads_the_shortlist_not_ancient_overdue():
     """AGENTS.md: 'here's what would make today a win', not 'here's what's overdue'.
-    Sorting oldest-first surfaces exactly the items he has most avoided."""
+    Sorting oldest-first surfaces exactly the items the user has most avoided."""
     titles = [t["title"] for t in shortlist(STALE, today="2026-08-24")]
-    assert titles[0] == "AMP speaker tasks"
+    assert titles[0] == "Conference speaker tasks"
 
 
 def test_months_stale_items_sink_below_live_and_recent():
     titles = [t["title"] for t in shortlist(STALE, today="2026-08-24")]
-    assert titles.index("Chase school re violin") < titles.index("Cut edge noggins")
-    assert titles.index("Send the key back") < titles.index("Pay Toby 400")
+    assert titles.index("Chase school re club form") < titles.index("Fix fence panel")
+    assert titles.index("Send the key back") < titles.index("Pay window cleaner")
 
 
 def test_recent_overdue_still_ranks_above_undated_backlog():

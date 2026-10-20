@@ -202,8 +202,18 @@ def _fetch_health(date_str: str) -> dict:
     an expired Garmin token or a blocked login must never break a briefing.
     """
     try:
-        from pa_health.client import get_health
-        return get_health(date_str)
+        import datetime
+
+        from pa_health.client import get_activities_range, get_health, weekly_summary
+
+        health = get_health(date_str)
+        # Weekly volume, not today's run, is the useful training number.
+        end = datetime.date.fromisoformat(date_str[:10])
+        start = end - datetime.timedelta(days=6)
+        health["running_week"] = weekly_summary(
+            get_activities_range(start.isoformat(), end.isoformat())
+        )
+        return health
     except Exception:
         # Deliberately duplicated rather than imported from pa_health. The
         # fallback must not depend on the thing that just failed — if the
@@ -211,9 +221,29 @@ def _fetch_health(date_str: str) -> dict:
         # fails too.
         return {
             "date": date_str, "sleep_hours": None, "sleep_quality": None,
-            "resting_hr": None, "hrv": None, "body_battery_high": None,
-            "body_battery_low": None, "steps": None, "source": None, "ok": False,
+            "resting_hr": None, "hrv": None, "avg_stress": None,
+            "max_stress": None, "body_battery_high": None,
+            "body_battery_low": None, "steps": None, "activities": [],
+            "abnormal_hr": [],
+            "running_week": {"runs": 0, "distance_km": 0.0, "duration_min": 0.0, "avg_hr": None},
+            "source": None, "ok": False,
         }
+
+
+def unlabelled_hr_alerts(alerts: list[dict], logged_events: list[dict]) -> list[dict]:
+    """Garmin HR alerts the user has not yet explained.
+
+    The calendar often cannot explain these, so the user's recall is the only
+    source of context. An
+    alert stays on the list until a `wellness/hr_context` event records what it
+    was, matched on date and time so answering one never silences another.
+    """
+    answered = {
+        ((e.get("details") or {}).get("date"), (e.get("details") or {}).get("time"))
+        for e in logged_events
+        if e.get("category") == "wellness" and e.get("action") == "hr_context"
+    }
+    return [a for a in alerts if (a.get("date"), a.get("time")) not in answered]
 
 
 def _fetch_habits(date_str: str) -> list[dict]:
@@ -356,22 +386,6 @@ def get_today_context() -> dict:
         health = {"date": date_str, "ok": False}
         errors.append(f"Health: {exc}")
 
-    # Telegram messages
-    try:
-        from pa_telegram.client import get_messages
-        telegram_messages = get_messages()
-    except Exception as exc:
-        telegram_messages = []
-        errors.append(f"Telegram: {exc}")
-
-    # WhatsApp messages
-    try:
-        from pa_whatsapp.client import get_messages as get_whatsapp_messages
-        whatsapp_messages = get_whatsapp_messages()
-    except Exception as exc:
-        whatsapp_messages = []
-        errors.append(f"WhatsApp: {exc}")
-
     # Task stats (from Notion — project breakdowns + completion trends)
     try:
         from pa_notion.stats import get_task_stats, render_stats
@@ -400,8 +414,6 @@ def get_today_context() -> dict:
         "completed_today": completed_today,
         "completed_yesterday": completed_yesterday,
         "stats": stats,
-        "telegram_messages": telegram_messages,
-        "whatsapp_messages": whatsapp_messages,
         "habits": habits,
         "health": health,
         "task_stats": task_stats,

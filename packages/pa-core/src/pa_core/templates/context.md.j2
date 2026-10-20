@@ -18,24 +18,6 @@ _No events today._
 _Inbox zero!_
 {% endif %}
 
-## Telegram Messages
-{% if telegram_messages %}
-{% for msg in telegram_messages %}
-- [{{ msg.time }}] {{ msg.from_name }}: {{ msg.text }}
-{% endfor %}
-{% else %}
-_No new messages._
-{% endif %}
-
-## WhatsApp Messages
-{% if whatsapp_messages %}
-{% for msg in whatsapp_messages %}
-- [{{ msg.time }}] {{ msg.from_name }}{% if msg.chat_name %} ({{ msg.chat_name }}){% endif %}: {{ msg.text }}
-{% endfor %}
-{% else %}
-_No new messages._
-{% endif %}
-
 ## Urgent Tasks
 {% if tasks_urgent %}
 {% for t in tasks_urgent %}

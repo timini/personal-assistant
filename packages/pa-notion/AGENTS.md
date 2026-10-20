@@ -1,7 +1,7 @@
 # pa-notion — Package Instructions
 
 ## Goal
-**Single source of truth for all tasks and commitments.** Every actionable item should end up as a Notion task.
+**Single source of truth for the user's tasks.** Only real work belongs here: something the user must do that the assistant cannot do or draft. See the root `AGENTS.md` for what never becomes a task.
 
 ## Task Rules
 
@@ -12,6 +12,20 @@
 5. **Present tasks grouped by project** when showing to user
 6. When creating tasks from emails, include Gmail link in Notes field
 7. **ALWAYS keep task Notes up to date.** Notion is the knowledge base. When working on a task, update its Notes with the current state of play — decisions made, emails sent/received, options discussed, draft content, and next steps. Notes should be detailed enough that anyone picking up the task can understand what's happened and what to do next. This applies especially to tasks involving email threads, people conversations, and multi-step processes.
+8. **Search before adding.** `add_task()` and `pa-notion tasks add` refuse a title that nearly matches an open task and show the match. Update that task instead. Use `--force` only when the work is genuinely separate.
+9. **Due dates carry lead time.** Set the due date a few days before the real deadline (renewals, lapses, payment dates), never on the deadline itself.
+
+## Commands
+
+```bash
+uv run pa-notion tasks list --open --search "boiler" --json      # also --project, --lane, --due-before
+uv run pa-notion tasks show <id>                                 # properties, notes and page body
+uv run pa-notion tasks update <id> --append-notes "19 Oct: quote received, <gmail link>"
+uv run pa-notion tasks update <id> --lane "🅿️ Parked" --due none # clear a due date
+uv run pa-notion tasks add "Title" --project P --priority High --due 2026-01-08 --notes "..."
+```
+
+Use `--append-notes` to add to a task's notes; `--notes` replaces them. Task dicts from `list --json` include `notes`.
 
 ## Notion DB Schema (Tasks database)
 
@@ -25,34 +39,13 @@
 
 ## Task Hygiene
 
-Tasks accumulate cruft. Every week (see the root `AGENTS.md` Weekly workflow — Sunday evening checkin), run a hygiene pass to prevent the list becoming stale and overwhelming.
-
-**Audit categories:**
-- **No duplicates** — same action tracked in 2+ tasks → propose merge
-- **Notes up to date** — every In Progress task must have current state in Notes (see rule 7 in Task Rules)
-- **Stale In Progress** — In Progress for 14+ days with no Notes update → ask if still active
-- **Urgent = due date** — Urgent priority without a due date is invalid; add the date or drop priority
-- **Overdue is not a lie** — if due date has passed and the task isn't Done, decide: bump date, mark Waiting, or close
-- **Meta/container tasks** — the `{Project} — tasks` pattern should be a home page with context, not a dumping ground; sub-tasks should be linked via `Parent item` relation
-- **Orphan groups** — clusters of related tasks (same project, same topic) that should be linked via `Parent item`
-
-**Never mark a task Done without the user's explicit confirmation**. When in doubt, ASK.
+Use the `task-hygiene` skill for the weekly review. **Never mark a task Done without the user's explicit confirmation.**
 
 ## Sub-task Pattern
 ```python
 parent_id = client.create_page(db_id, parent_props)["id"]
 client.update_page(child_id, {"Parent item": {"relation": [{"id": parent_id}]}})
 ```
-
-## Google Tasks Sync
-
-Google Tasks sync is optional. Read private instructions first and run `uv run pa-notion tasks sync` only when enabled for this user. Check command side effects before invoking briefing workflows that may sync automatically. Store the configured list ID in `GOOGLE_TODAY_TASKLIST_ID` in `.env`; keep migration history private.
-
-### Orphaned task import
-If a Google Task has no Notion link (e.g. added directly on phone), sync will automatically create a matching Notion task and update the Google Task with the Notion link. Completed orphans are created as Done and removed from Google Tasks. Incomplete orphans stay on the phone with the Notion link added to notes. `[Project]` prefixes in titles are parsed back into the Notion project field.
-
-### gws CLI gotcha
-The `showCompleted` and `showHidden` params must be strings (`"true"`) not booleans (`True`) — gws serialises booleans incorrectly.
 
 ## Embedding Images from Google Drive
 

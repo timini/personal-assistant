@@ -26,7 +26,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           uv run --all-packages python -m pytest \
-            --cov=pa_telegram \
+            --cov=pa_core.memory \
             --cov=pa_core.context \
             --cov=pa_core.cli \
             --cov-report=term-missing \

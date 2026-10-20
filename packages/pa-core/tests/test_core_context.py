@@ -126,7 +126,29 @@ class TestCountCompleted:
 
 class TestFetchWeather:
     @patch("httpx.get")
-    def test_fetch_weather_success(self, mock_get):
+    @patch("pa_core.context.get_user_config", return_value={"timezone": "Europe/London"})
+    def test_fetch_weather_uses_configured_timezone_location(self, _config, mock_get):
+        geo_resp = MagicMock()
+        geo_resp.json.return_value = {
+            "results": [{"name": "London", "latitude": 51.5, "longitude": -0.1}]
+        }
+        weather_resp = MagicMock()
+        weather_resp.json.return_value = {
+            "current": {"weather_code": 0},
+            "daily": {},
+        }
+        mock_get.side_effect = [geo_resp, weather_resp]
+
+        from pa_core.context import _fetch_weather
+        result = _fetch_weather()
+
+        assert mock_get.call_args_list[0].args[0] == "https://geocoding-api.open-meteo.com/v1/search"
+        assert mock_get.call_args_list[0].kwargs["params"]["name"] == "London"
+        assert result["location"] == "London"
+
+    @patch("httpx.get")
+    @patch("pa_core.context.get_user_config", return_value={})
+    def test_fetch_weather_success(self, _config, mock_get):
         geo_resp = MagicMock()
         geo_resp.json.return_value = {"latitude": 51.5, "longitude": -0.1, "city": "London"}
         weather_resp = MagicMock()
@@ -150,7 +172,8 @@ class TestFetchWeather:
         assert result["rain_probability"] == 20
 
     @patch("httpx.get")
-    def test_fetch_weather_unknown_code(self, mock_get):
+    @patch("pa_core.context.get_user_config", return_value={})
+    def test_fetch_weather_unknown_code(self, _config, mock_get):
         geo_resp = MagicMock()
         geo_resp.json.return_value = {"latitude": 51.5, "longitude": -0.1, "city": "London"}
         weather_resp = MagicMock()
@@ -355,7 +378,6 @@ class TestGetTodayContextErrors:
             patch("pa_core.context._fetch_emails", return_value=[]),
             patch("pa_core.context._fetch_tasks", return_value=([], [])),
             patch("pa_core.context._fetch_weather", return_value=FAKE_WEATHER),
-            patch("pa_telegram.client.get_messages", return_value=[]),
         ]
 
     def test_calendar_error(self):
@@ -482,7 +504,6 @@ class TestRenderContext:
             "now": FAKE_NOW,
             "calendar": [],
             "emails": [],
-            "telegram_messages": [],
             "tasks_due_soon": [],
             "tasks_urgent": [],
             "completed_today": [],

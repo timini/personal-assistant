@@ -42,7 +42,7 @@ _WORDS = {
 CADENCES = ("daily", "weekly", "monthly")
 
 # How late in a period a non-daily habit starts being asked about. Asking on
-# Monday about a weekly habit is noise that trains him to ignore the message.
+# Monday about a weekly habit is noise that trains the user to ignore the message.
 _WEEKLY_ASK_FROM_WEEKDAY = 4   # Friday (Mon=0)
 _MONTHLY_ASK_LAST_N_DAYS = 5
 
@@ -183,7 +183,7 @@ def habit_due(habit: dict, events: Iterable[dict], today: str | None = None) -> 
 
     Daily habits are asked every night unless already done. Weekly and monthly
     ones are only asked as their period runs out, because a monthly habit asked
-    nightly is noise that trains him to ignore the message.
+    nightly is noise that trains the user to ignore the message.
     """
     today = today or datetime.date.today().isoformat()
     cadence = habit.get("cadence", "daily")

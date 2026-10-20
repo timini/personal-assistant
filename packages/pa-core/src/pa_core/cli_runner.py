@@ -3,6 +3,7 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 
@@ -12,6 +13,7 @@ def run_cli(
     timeout: int = 60,
     capture: bool = True,
     check: bool = True,
+    cwd: str | Path | None = None,
 ) -> subprocess.CompletedProcess:
     """Run a CLI command as a subprocess.
 
@@ -20,6 +22,7 @@ def run_cli(
         timeout: Timeout in seconds.
         capture: Whether to capture stdout/stderr.
         check: Whether to raise on non-zero exit code.
+        cwd: Working directory for the command.
 
     Returns:
         CompletedProcess with stdout/stderr as strings.
@@ -31,6 +34,7 @@ def run_cli(
             text=True,
             timeout=timeout,
             check=check,
+            cwd=cwd,
         )
         return result
     except subprocess.TimeoutExpired:

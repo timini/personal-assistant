@@ -43,6 +43,143 @@ def _wellness_section(events: list[dict]) -> list[str]:
     return lines
 
 
+def _health_section(health: dict | None) -> list[str]:
+    """Build a compact health section, omitting metrics that are missing."""
+    lines = ["## Health\n"]
+    if not health or not health.get("ok"):
+        return lines + ["_Health data unavailable._", ""]
+
+    if health.get("sleep_hours") is not None:
+        quality = health.get("sleep_quality")
+        suffix = f" ({quality})" if quality else ""
+        lines.append(f"- Sleep: {health['sleep_hours']}h{suffix}")
+    if health.get("resting_hr") is not None:
+        lines.append(f"- Resting heart rate: {health['resting_hr']} bpm")
+    if health.get("hrv") is not None:
+        lines.append(f"- HRV (7-day average): {health['hrv']} ms")
+    if health.get("avg_stress") is not None:
+        maximum = health.get("max_stress")
+        suffix = f", {maximum} max" if maximum is not None else ""
+        lines.append(f"- Stress: {health['avg_stress']} average{suffix}")
+    low = health.get("body_battery_low")
+    high = health.get("body_battery_high")
+    if low is not None or high is not None:
+        lines.append(f"- Body Battery: {low if low is not None else '?'}-{high if high is not None else '?'}")
+    if health.get("steps") is not None:
+        lines.append(f"- Steps: {health['steps']:,}")
+    lines += _activity_lines(health.get("activities") or [])
+    week = _running_week_line(health.get("running_week") or {})
+    if week:
+        lines.append(week)
+    lines += _alert_lines(health.get("abnormal_hr") or [])
+    lines.append("")
+    return lines
+
+
+def _running_week_line(summary: dict) -> str:
+    """One line of running volume for the last 7 days.
+
+    For someone building running volume, the weekly total is more useful than
+    today's run. Average heart rate rides along so the easy/hard split is
+    visible without going looking.
+    """
+    if not summary or not summary.get("runs"):
+        return ""
+    runs = summary["runs"]
+    bits = [f"{summary['distance_km']} km", f"{runs} run{'s' if runs != 1 else ''}"]
+    if summary.get("avg_hr"):
+        bits.append(f"{summary['avg_hr']} bpm avg")
+    return "- Running, last 7 days: " + ", ".join(bits)
+
+
+def _alert_lines(alerts: list[dict]) -> list[str]:
+    """Garmin high-HR alerts, listed so the user can say what each one was.
+
+    These fire when heart rate crosses the user's threshold while the watch
+    believes they are at rest, so the calendar rarely explains them. Listing
+    the time and the reading is what lets the user recall it.
+    """
+    if not alerts:
+        return []
+    lines = ["", "**Heart rate alerts** — what was happening?"]
+    for alert in alerts:
+        threshold = alert.get("threshold")
+        over = f" (over {threshold})" if threshold else ""
+        lines.append(f"- {alert.get('time')} — {alert.get('bpm')} bpm{over}")
+    return lines
+
+
+def _activity_lines(activities: list[dict]) -> list[str]:
+    """Render logged sessions. Steps cannot distinguish a 10k from a day of
+    walking, so the sessions themselves are what make the day legible."""
+    lines = []
+    for activity in activities:
+        # Only the parts this session actually recorded. A gym session has no
+        # distance and a walk may have no heart rate; printing "None km" is
+        # worse than printing nothing.
+        bits = []
+        if activity.get("distance_km"):
+            bits.append(f"{activity['distance_km']} km")
+        if activity.get("duration_min"):
+            bits.append(f"{activity['duration_min']} min")
+        if activity.get("avg_hr"):
+            bits.append(f"{activity['avg_hr']} bpm avg")
+        if activity.get("calories"):
+            bits.append(f"{activity['calories']} cal")
+        name = activity.get("name") or activity.get("type") or "Activity"
+        suffix = "  🏅 PR" if activity.get("is_pr") else ""
+        detail = f" — {', '.join(bits)}" if bits else ""
+        lines.append(f"- Activity: {name}{detail}{suffix}")
+    return lines
+
+
+def _wellness_trend_section(events: list[dict]) -> list[str]:
+    """Render normalised mood and energy readings in chronological order."""
+    from pa_core.wellness import parse_scale
+
+    readings = []
+    for event in sorted(events, key=lambda e: (e.get("date", ""), e.get("timestamp", ""))):
+        if event.get("category") != "wellness" or event.get("action") != "check_in":
+            continue
+        details = event.get("details", {})
+        mood = parse_scale(details.get("mood_normalized", details.get("mood")))
+        energy = parse_scale(details.get("energy_normalized", details.get("energy")))
+        readings.append((mood, energy))
+
+    moods = [m for m, _ in readings if m is not None]
+    energies = [e for _, e in readings if e is not None]
+    if not moods and not energies:
+        return []
+
+    def line(label: str, values: list[int]) -> str | None:
+        if not values:
+            return None
+        direction = ""
+        if len(values) > 1:
+            if values[-1] > values[0]:
+                direction = " (improving)"
+            elif values[-1] < values[0]:
+                direction = " (declining)"
+            else:
+                direction = " (steady)"
+        return f"- {label}: {' -> '.join(map(str, values))}{direction}"
+
+    lines = ["## 7-Day Mood and Energy\n"]
+    lines.extend(value for value in (line("Mood", moods), line("Energy", energies)) if value)
+    lines.append("")
+    return lines
+
+
+def _recent_events(date_str: str, days: int) -> list[dict]:
+    """Load recent events and attach their log date for trend grouping."""
+    end = datetime.strptime(date_str, "%Y-%m-%d").date()
+    result = []
+    for offset in range(days - 1, -1, -1):
+        day = (end - timedelta(days=offset)).isoformat()
+        result.extend({**event, "date": event.get("date", day)} for event in get_events(day))
+    return result
+
+
 def _format_event(ev: dict) -> str:
     """Format a single event with time and optional calendar label."""
     time_str = ev.get("start", "")
@@ -84,9 +221,20 @@ def _calendar_section(date_str: str) -> list[str]:
     return lines
 
 
-def _focus_section() -> list[str]:
+def _focus_section(events: list[dict] | None = None) -> list[str]:
     """Build 'Today's Focus' — top 5 tasks sorted by urgency/due date."""
     lines = []
+    planned = [
+        event for event in (events or [])
+        if event.get("category") == "task" and event.get("action") == "planned"
+    ]
+    if planned:
+        lines.append("## Today's Focus\n")
+        for event in planned[:5]:
+            lines.append(f"- **Chosen plan:** {event.get('summary', 'Untitled')}")
+        lines.append("")
+        return lines
+
     try:
         from pa_notion.tasks import list_tasks
 
@@ -141,7 +289,16 @@ def _format_links(event: dict) -> str:
 
 def _wins_section(events: list[dict]) -> list[str]:
     """Build Wins section — only if there are completed actions."""
-    completed = [e for e in events if e["action"] in ("archived", "completed", "resolved", "created")]
+    completed = []
+    seen = set()
+    for event in events:
+        if event["action"] not in ("archived", "completed", "resolved", "created"):
+            continue
+        key = (event.get("action"), event.get("summary"), event.get("project"))
+        if key in seen:
+            continue
+        seen.add(key)
+        completed.append(event)
     if not completed:
         return []
 
@@ -170,34 +327,30 @@ def _heads_up_section(events: list[dict]) -> list[str]:
     return lines
 
 
-def _sync_google_tasks():
-    """Sync Google Tasks with Notion: import orphans and sync completions."""
-    try:
-        from pa_notion.tasks import sync_google_tasks
-        from pa_core.daily_log import log_event
-        synced = sync_google_tasks()
-        for s in synced:
-            if s.get("status") == "To Do":
-                log_event("task", "created", f"Imported from Google Tasks: {s['title']}")
-            else:
-                log_event("task", "completed", f"Completed: {s['title']} (synced from Google Tasks)")
-    except (ImportError, Exception):
-        pass
-
-
 def generate_briefing(date: str | None = None) -> str:
     """Generate a markdown daily briefing. Returns the markdown string."""
-    _sync_google_tasks()
     date_str = date or _today_str()
     events = get_events(date_str)
+    recent = _recent_events(date_str, 7)
+    history = _recent_events(date_str, 30)
+
+    try:
+        from pa_core.context import _fetch_health
+        health = _fetch_health(date_str)
+    except Exception:
+        health = {"ok": False}
 
     sections: list[str] = []
     name = get_assistant_name()
     sections.append(f"# {name} Daily Briefing — {date_str}\n")
 
     sections.extend(_wellness_section(events))
+    sections.extend(_wellness_trend_section(recent))
+    sections.extend(_health_section(health))
     sections.extend(_calendar_section(date_str))
-    sections.extend(_focus_section())
+    sections.extend(_focus_section(events))
+    sections.extend(_habits_section(events, date_str, history=history))
+    sections.extend(_gratitude_section(history))
     sections.extend(_wins_section(events))
     sections.extend(_heads_up_section(events))
 
@@ -224,11 +377,14 @@ def _streak_count(habit_name: str, date_str: str) -> int:
     return streak_count(habit_name, date_str)
 
 
-def _habits_section(events: list[dict], date_str: str) -> list[str]:
+def _habits_section(
+    events: list[dict], date_str: str, history: list[dict] | None = None
+) -> list[str]:
     """Build Habits section — configured habits + freeform, with streaks."""
     config = get_user_config()
     configured_habits = config.get("habits", [])
     habit_events = [e for e in events if e["category"] == "habit"]
+    history = history or [{**event, "date": event.get("date", date_str)} for event in events]
 
     if not configured_habits and not habit_events:
         return []
@@ -274,22 +430,25 @@ def _habits_section(events: list[dict], date_str: str) -> list[str]:
     for e in freeform:
         lines.append(f"- {e['summary']} (freeform)")
 
-    # Streaks for completed configured habits
-    streak_parts = []
+    # Cadence-aware streak and completion rate for every configured habit.
+    from pa_core.wellness import completion_rate, streak
+
     for habit in configured_habits:
         name = habit.get("name", "")
-        completed_today = any(
-            e["summary"] == name and e["action"] == "completed" for e in habit_events
+        cadence = habit.get("cadence", "daily")
+        target = int(habit.get("target", 1) or 1)
+        period_label = {"daily": "days", "weekly": "weeks", "monthly": "months"}.get(
+            cadence, "days"
         )
-        if completed_today:
-            streak = _streak_count(name, date_str) + 1  # +1 for today
-        else:
-            streak = 0
-        if streak > 1:
-            streak_parts.append(f"{name} {streak} days")
-
-    if streak_parts:
-        lines.append(f"\nStreak: {' | '.join(streak_parts)}")
+        periods = {"daily": 30, "weekly": 5, "monthly": 2}.get(cadence, 30)
+        run = streak(name, history, cadence, target, today=date_str)
+        done, total = completion_rate(
+            name, history, cadence, target, today=date_str, lookback=periods
+        )
+        lines.append(
+            f"- {name} stats: streak {run} {period_label} | "
+            f"Completion: {done} of the last {total} {period_label}"
+        )
 
     lines.append("")
     return lines
@@ -356,26 +515,36 @@ def _gratitude_section(events: list[dict]) -> list[str]:
         return ["## Gratitude\n", "_Not logged yet._", ""]
     lines = ["## Gratitude\n"]
     for e in gratitude:
-        lines.append(f"- {e['summary']}")
+        prefix = f"{e['date']}: " if e.get("date") else ""
+        lines.append(f"- {prefix}{e['summary']}")
     lines.append("")
     return lines
 
 
 def generate_evening_briefing(date: str | None = None) -> str:
     """Generate a markdown evening briefing. Returns the markdown string."""
-    _sync_google_tasks()
     date_str = date or _today_str()
     events = get_events(date_str)
+    history = _recent_events(date_str, 30)
+    recent = _recent_events(date_str, 7)
+
+    try:
+        from pa_core.context import _fetch_health
+        health = _fetch_health(date_str)
+    except Exception:
+        health = {"ok": False}
 
     sections: list[str] = []
     name = get_assistant_name()
     sections.append(f"# {name} Evening Briefing — {date_str}\n")
 
+    sections.extend(_health_section(health))
     sections.extend(_wins_section(events))
-    sections.extend(_habits_section(events, date_str))
+    sections.extend(_wellness_trend_section(recent))
+    sections.extend(_habits_section(events, date_str, history=history))
     sections.extend(_reflections_section(events))
     sections.extend(_tomorrow_focus_section())
-    sections.extend(_gratitude_section(events))
+    sections.extend(_gratitude_section(history))
 
     return "\n".join(sections)
 

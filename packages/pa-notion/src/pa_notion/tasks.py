@@ -1,16 +1,58 @@
 """Task CRUD operations against the Notion tasks database."""
 
+import difflib
 import re
-import sys
-from datetime import datetime, timedelta, timezone
 
-from pa_core.cli_runner import run_gws
 from pa_core.config import get_secret
 from pa_notion.client import NotionClient
 
 
+# Notion rejects rich_text segments longer than this.
+RICH_TEXT_LIMIT = 2000
+
+# Title similarity at or above this counts as the same task.
+DUPLICATE_RATIO = 0.85
+
+_FILLER = {"a", "an", "the", "to", "for", "of", "and", "re", "my"}
+
+
+class DuplicateTaskError(Exception):
+    """An open task already covers this. Update it instead of adding another."""
+
+    def __init__(self, title: str, matches: list[dict]):
+        self.matches = matches
+        listed = "; ".join(f"{m['title']} ({m['id']})" for m in matches)
+        super().__init__(f"Similar open task exists for {title!r}: {listed}")
+
+
 def _get_db_id() -> str:
     return get_secret("NOTION_TASKS_DB_ID")
+
+
+def _rich_text(text: str) -> list[dict]:
+    """Split text into segments Notion will accept."""
+    return [
+        {"text": {"content": text[i:i + RICH_TEXT_LIMIT]}}
+        for i in range(0, max(len(text), 1), RICH_TEXT_LIMIT)
+    ]
+
+
+def _normalise(title: str) -> str:
+    words = re.findall(r"[a-z0-9]+", title.lower())
+    return " ".join(w for w in words if w not in _FILLER)
+
+
+def find_similar_tasks(title: str, tasks: list[dict]) -> list[dict]:
+    """Open tasks whose titles are near-identical to `title`."""
+    target = _normalise(title)
+    matches = []
+    for task in tasks:
+        if task.get("status") in ("Done", "Discarded"):
+            continue
+        other = _normalise(task.get("title", ""))
+        if other and difflib.SequenceMatcher(None, target, other).ratio() >= DUPLICATE_RATIO:
+            matches.append(task)
+    return matches
 
 
 def _extract_task(page: dict) -> dict:
@@ -58,6 +100,8 @@ def _extract_task(page: dict) -> dict:
     if "date" in due_prop and due_prop["date"]:
         due_date = due_prop["date"].get("start", "")
 
+    notes = "".join(seg.get("plain_text", "") for seg in props.get("Notes", {}).get("rich_text", []))
+
     return {
         "id": page["id"],
         "title": title,
@@ -66,6 +110,7 @@ def _extract_task(page: dict) -> dict:
         "lane": lane,
         "project": project,
         "due_date": due_date,
+        "notes": notes,
         "url": page.get("url", ""),
         "last_edited_time": page.get("last_edited_time", ""),
     }
@@ -87,14 +132,48 @@ def list_tasks(status_filter: str | None = None) -> list[dict]:
     return [_extract_task(p) for p in pages]
 
 
+def filter_tasks(
+    tasks: list[dict],
+    *,
+    open_only: bool = False,
+    search: str | None = None,
+    project: str | None = None,
+    lane: str | None = None,
+    due_before: str | None = None,
+) -> list[dict]:
+    """Filter task dicts locally. Text matches are case-insensitive substrings."""
+    def has(value: str, needle: str | None) -> bool:
+        return needle is None or needle.lower() in (value or "").lower()
+
+    return [
+        t for t in tasks
+        if not (open_only and t.get("status") in ("Done", "Discarded"))
+        and (search is None or has(t.get("title", ""), search) or has(t.get("notes", ""), search))
+        and has(t.get("project", ""), project)
+        and has(t.get("lane", ""), lane)
+        and (due_before is None or (t.get("due_date") and t["due_date"][:10] <= due_before))
+    ]
+
+
 def add_task(
     title: str,
     project: str = "",
     priority: str = "",
     notes: str = "",
     status: str = "To Do",
+    force: bool = False,
+    due_date: str = "",
+    lane: str = "",
 ) -> dict:
-    """Add a new task to the tasks database. Verifies creation by re-fetching."""
+    """Add a new task to the tasks database. Verifies creation by re-fetching.
+
+    Refuses when a near-identical open task exists (DuplicateTaskError), unless
+    `force` is set: the usual right move is to update the existing task.
+    """
+    if not force:
+        matches = find_similar_tasks(title, list_tasks())
+        if matches:
+            raise DuplicateTaskError(title, matches)
     client = NotionClient()
     db_id = _get_db_id()
 
@@ -107,7 +186,11 @@ def add_task(
     if priority:
         properties["Priority"] = {"select": {"name": priority}}
     if notes:
-        properties["Notes"] = {"rich_text": [{"text": {"content": notes}}]}
+        properties["Notes"] = {"rich_text": _rich_text(notes)}
+    if due_date:
+        properties["Due Date"] = {"date": {"start": due_date}}
+    if lane:
+        properties["Lane"] = {"select": {"name": lane}}
 
     page = client.create_page(db_id, properties)
     created = _extract_task(page)
@@ -119,11 +202,6 @@ def add_task(
     return verified
 
 
-GOOGLE_TASK_LISTS = {
-    "today": get_secret("GOOGLE_TODAY_TASKLIST_ID"),
-}
-
-
 def get_task(task_id: str) -> dict:
     """Fetch a single task by ID."""
     client = NotionClient()
@@ -131,30 +209,22 @@ def get_task(task_id: str) -> dict:
     return _extract_task(page)
 
 
-def promote_task(task_id: str, list_name: str = "today", due: str | None = None) -> dict:
-    """Promote a Notion task to Google Tasks with a link back."""
-    task = get_task(task_id)
-    notion_url = f"https://www.notion.so/{task_id.replace('-', '')}"
-
-    tasklist_id = GOOGLE_TASK_LISTS[list_name]
-
-    title = task["title"]
-    if task.get("project"):
-        title = f"[{task['project']}] {title}"
-
-    body: dict = {"title": title, "notes": notion_url}
-    due_date = due or task.get("due_date")
-    if due_date:
-        body["due"] = f"{due_date}T00:00:00Z"
-
-    result = run_gws("tasks", "tasks", "insert",
-                     params={"tasklist": tasklist_id},
-                     body=body)
-    return {"notion": task, "google_task": result, "notion_url": notion_url}
+def get_task_body(task_id: str) -> str:
+    """Plain text of the blocks on a task page, one line per block."""
+    lines = []
+    for block in NotionClient().get_block_children(task_id):
+        content = block.get(block.get("type", ""), {})
+        text = "".join(seg.get("plain_text", "") for seg in content.get("rich_text", []))
+        if block.get("type") in ("bulleted_list_item", "numbered_list_item", "to_do"):
+            text = f"- {text}"
+        if text:
+            lines.append(text)
+    return "\n".join(lines)
 
 
 def update_task(task_id: str, **updates) -> dict:
-    """Update task properties. Accepts: title, status, priority, project, due_date.
+    """Update task properties. Accepts: title, status, priority, project, lane,
+    due_date (None clears it), notes (replaces) and append_notes (adds a paragraph).
 
     Verifies the update by re-fetching the page and checking the values match.
     Raises RuntimeError if verification fails.
@@ -163,17 +233,24 @@ def update_task(task_id: str, **updates) -> dict:
     properties: dict = {}
 
     if "title" in updates:
-        properties["Name"] = {"title": [{"text": {"content": updates["title"]}}]}
+        properties["Task"] = {"title": [{"text": {"content": updates["title"]}}]}
     if "status" in updates:
         properties["Status"] = {"select": {"name": updates["status"]}}
     if "priority" in updates:
         properties["Priority"] = {"select": {"name": updates["priority"]}}
     if "project" in updates:
         properties["Project"] = {"select": {"name": updates["project"]}}
+    if "lane" in updates:
+        properties["Lane"] = {"select": {"name": updates["lane"]}}
     if "due_date" in updates:
-        properties["Due Date"] = {"date": {"start": updates["due_date"]}}
+        due = updates["due_date"]
+        properties["Due Date"] = {"date": {"start": due} if due else None}
     if "notes" in updates:
-        properties["Notes"] = {"rich_text": [{"text": {"content": updates["notes"]}}]}
+        properties["Notes"] = {"rich_text": _rich_text(updates["notes"])}
+    if "append_notes" in updates:
+        existing = _extract_task(client.get_page(task_id))["notes"]
+        combined = f"{existing}\n\n{updates['append_notes']}" if existing else updates["append_notes"]
+        properties["Notes"] = {"rich_text": _rich_text(combined)}
 
     client.update_page(task_id, properties)
 
@@ -181,173 +258,14 @@ def update_task(task_id: str, **updates) -> dict:
     verified = _extract_task(client.get_page(task_id))
 
     # Check each update was applied
-    field_map = {"status": "status", "priority": "priority", "project": "project", "title": "title", "due_date": "due_date"}
+    field_map = {"status": "status", "priority": "priority", "project": "project", "title": "title",
+                 "due_date": "due_date", "lane": "lane"}
     mismatches = []
     for key, field in field_map.items():
-        if key in updates and verified[field] != updates[key]:
+        if key in updates and verified[field] != (updates[key] or ""):
             mismatches.append(f"{key}: expected '{updates[key]}', got '{verified[field]}'")
 
     if mismatches:
         raise RuntimeError(f"Task update verification failed for {task_id}: {'; '.join(mismatches)}")
 
-    if "status" in updates and updates["status"] == "Done":
-        _complete_google_task(task_id)
-
     return verified
-
-
-def _notion_id_from_url(url: str) -> str | None:
-    """Extract Notion page ID from URL, re-inserting dashes."""
-    match = re.search(r"notion\.so/(?:[^/]+-)?([a-f0-9]{32})$", url)
-    if not match:
-        return None
-    hex_id = match.group(1)
-    return f"{hex_id[:8]}-{hex_id[8:12]}-{hex_id[12:16]}-{hex_id[16:20]}-{hex_id[20:]}"
-
-
-def _complete_google_task(notion_task_id: str) -> None:
-    """Find and complete the Google Task linked to this Notion task ID."""
-    notion_url_fragment = notion_task_id.replace("-", "")
-    for _list_name, tasklist_id in GOOGLE_TASK_LISTS.items():
-        try:
-            tasks = run_gws("tasks", "tasks", "list",
-                            params={"tasklist": tasklist_id})
-            if not tasks or "items" not in tasks:
-                continue
-            for gt in tasks["items"]:
-                notes = gt.get("notes", "")
-                if notion_url_fragment in notes:
-                    run_gws("tasks", "tasks", "patch",
-                            params={"tasklist": tasklist_id, "task": gt["id"]},
-                            body={"status": "completed"})
-                    return
-        except Exception as e:
-            print(f"WARNING: Failed to complete Google Task for {notion_task_id}: {e}", file=sys.stderr)
-
-
-def import_orphaned_tasks() -> list[dict]:
-    """Import Google Tasks that don't have a Notion link into Notion.
-
-    For incomplete orphans: create Notion task (To Do) → update Google Task notes with Notion URL.
-    For completed orphans: create Notion task (Done) → delete Google Task.
-    Returns list of imported tasks.
-    """
-    imported = []
-    for list_name, tasklist_id in GOOGLE_TASK_LISTS.items():
-        tasks = run_gws("tasks", "tasks", "list",
-                        params={"tasklist": tasklist_id, "showCompleted": "true", "showHidden": "true"})
-        if not tasks or "items" not in tasks:
-            continue
-        for gt in tasks["items"]:
-            notes = gt.get("notes", "")
-            # Skip tasks that already have a Notion link
-            if _notion_id_from_url(notes):
-                continue
-
-            # Parse title — strip [Project] prefix if present
-            raw_title = gt.get("title", "").strip()
-            if not raw_title:
-                continue
-
-            project = ""
-            title = raw_title
-            project_match = re.match(r"^\[([^\]]+)\]\s*(.+)$", raw_title)
-            if project_match:
-                project = project_match.group(1)
-                title = project_match.group(2)
-
-            # Parse due date from Google Tasks format
-            due_date = ""
-            if gt.get("due"):
-                due_date = gt["due"][:10]  # "2026-03-14T00:00:00.000Z" → "2026-03-14"
-
-            is_completed = gt.get("status") == "completed"
-
-            # Skip old completed orphans (>7 days) — not worth importing
-            if is_completed:
-                cutoff = datetime.now(timezone.utc) - timedelta(days=7)
-                completed_str = gt.get("completed", "")
-                try:
-                    completed_dt = datetime.fromisoformat(completed_str.replace("Z", "+00:00"))
-                    if completed_dt < cutoff:
-                        continue
-                except (ValueError, TypeError):
-                    pass  # can't parse date — proceed with import
-
-            try:
-                # Create in Notion
-                notion_task = add_task(
-                    title=title,
-                    project=project,
-                    priority="",  # no priority info in Google Tasks
-                    notes=notes,  # preserve any existing notes
-                )
-
-                # If completed, mark Done immediately
-                if is_completed:
-                    update_task(notion_task["id"], status="Done")
-
-                notion_url = f"https://www.notion.so/{notion_task['id'].replace('-', '')}"
-
-                # Update Google Task with Notion link (marks it as managed)
-                new_notes = notion_url
-                if notes:
-                    new_notes = f"{notion_url}\n{notes}"
-                run_gws("tasks", "tasks", "patch",
-                        params={"tasklist": tasklist_id, "task": gt["id"]},
-                        body={"notes": new_notes})
-
-                imported.append({
-                    "title": title,
-                    "notion_id": notion_task["id"],
-                    "google_task_id": gt["id"],
-                    "list": list_name,
-                    "status": "Done" if is_completed else "To Do",
-                    "project": project,
-                })
-            except Exception as e:
-                print(f"ERROR importing '{title}': {e}", file=sys.stderr)
-    return imported
-
-
-def sync_google_tasks() -> list[dict]:
-    """Sync Google Tasks with Notion.
-
-    1. Import orphaned tasks (no Notion link) into Notion
-    2. Sync completed tasks (with Notion link) back to Notion
-
-    Returns list of all synced/imported tasks.
-    """
-    # Phase 1: Import orphaned tasks into Notion
-    imported = import_orphaned_tasks()
-
-    # Phase 2: Sync completed tasks with Notion links (existing logic)
-    synced = []
-    for list_name, tasklist_id in GOOGLE_TASK_LISTS.items():
-        tasks = run_gws("tasks", "tasks", "list",
-                        params={"tasklist": tasklist_id, "showCompleted": "true", "showHidden": "true"})
-        if not tasks or "items" not in tasks:
-            continue
-        for gt in tasks["items"]:
-            if gt.get("status") != "completed":
-                continue
-            notes = gt.get("notes", "")
-            notion_id = _notion_id_from_url(notes)
-            if not notion_id:
-                continue
-            try:
-                # Check if already Done in Notion — skip, already synced
-                existing = get_task(notion_id)
-                if existing.get("status") == "Done":
-                    continue
-
-                notion_task = update_task(notion_id, status="Done")
-                synced.append({
-                    "title": notion_task["title"],
-                    "notion_id": notion_id,
-                    "google_task_id": gt["id"],
-                    "list": list_name,
-                })
-            except Exception as e:
-                print(f"ERROR syncing task {notion_id}: {e}", file=sys.stderr)
-    return imported + synced

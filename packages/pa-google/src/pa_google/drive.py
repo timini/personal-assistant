@@ -18,6 +18,8 @@ BACKUP_PATHS = [
     "user.yaml",
     "user-instructions.md",
     "activity",
+    "private/memory",
+    "private/health-preferences.md",
 ]
 # Glob patterns to match (relative to PA_ROOT)
 BACKUP_GLOBS = [
@@ -101,8 +103,8 @@ def upload_file(file_path: Path, folder_id: str, filename: str) -> dict:
     result = run_cli([
         "gws", "drive", "files", "create",
         "--params", json.dumps({"name": filename, "parents": [folder_id]}),
-        "--upload", str(file_path),
-    ])
+        "--upload", file_path.name,
+    ], cwd=file_path.parent)
     return parse_json_output(result)
 
 

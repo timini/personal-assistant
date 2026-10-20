@@ -1,8 +1,8 @@
 """Build the morning planning prompt and the evening reflection prompt.
 
-Pure text assembly — no network, no model, no side effects, so it is cheap to
-test and cheap to run on a schedule. `scripts/wellness_prompt.py` fetches the
-inputs and sends the result.
+Pure text assembly: no network, no model, no side effects, so it is cheap to
+test. `pa-core checkin` fetches the inputs and prints the result; the agent
+harness decides when to run it.
 
 The morning prompt is the important one. Measured across 104 days, days that
 start with a plan complete 3.26 tasks against 1.27, and the median moves from
@@ -69,7 +69,7 @@ def build_morning_prompt(
     today: str | None = None,
     health: dict | None = None,
 ) -> str:
-    """The 06:30 message: the day, a shortlist, and three questions."""
+    """The morning message: the day, a shortlist, and three questions."""
     today = today or datetime.date.today().isoformat()
     day_name = datetime.date.fromisoformat(today[:10]).strftime("%A")
 
@@ -81,6 +81,16 @@ def build_morning_prompt(
             bits.append(f"{health['sleep_hours']}h sleep")
         if health.get("body_battery_high"):
             bits.append(f"body battery {health['body_battery_high']}")
+        for activity in health.get("activities") or []:
+            label = activity.get("type") or "session"
+            measure = (
+                f"{activity['distance_km']} km" if activity.get("distance_km")
+                else f"{activity['duration_min']} min" if activity.get("duration_min")
+                else None
+            )
+            if measure:
+                pr = " 🏅 PR" if activity.get("is_pr") else ""
+                bits.append(f"{label} {measure}{pr}")
         if bits:
             lines += [" · ".join(bits), ""]
 
@@ -119,7 +129,7 @@ def build_morning_prompt(
         "  • One thing you're doing to get going",
         "  • Which numbers above you're taking on (or none)",
         "",
-        "Whatever you pick, I'll put on your phone with today's date.",
+        "Whatever you pick, I'll set it due today in Notion.",
     ]
     return "\n".join(lines)
 
@@ -130,15 +140,24 @@ def build_evening_prompt(
     today: str | None = None,
     tomorrow_tasks: list[dict] | None = None,
 ) -> str:
-    """The 21:00 message: reflect, log, wind down, look at tomorrow.
+    """The evening message: reflect, log, wind down, look at tomorrow.
 
     Only asks about habits actually due — a monthly habit asked every night is
-    noise that trains him to ignore the message.
+    noise that trains the user to ignore the message.
     """
     today = today or datetime.date.today().isoformat()
     lines = ["🌙 Evening.", ""]
 
-    due = due_habits(habits, events, today)
+    # Daily log files carry the date at file level, so their event dicts do
+    # not. Attach today's date before cadence grouping. Gratitude and day
+    # planning already have dedicated questions and should not be duplicated
+    # in the generic habit checklist.
+    dated_events = [{**event, "date": event.get("date", today)} for event in events]
+    dedicated = {"gratitude", "day planning"}
+    due = [
+        habit for habit in due_habits(habits, dated_events, today)
+        if habit.get("name", "").strip().lower() not in dedicated
+    ]
     if due:
         lines.append("HABITS — done any of these?")
         for habit in due:

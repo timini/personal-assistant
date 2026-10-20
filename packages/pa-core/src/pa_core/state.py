@@ -1,8 +1,7 @@
 """Generic small key/value state store, backed by activity/.state.json.
 
 For cross-run cursors and 'last run' timestamps (e.g. when email triage last
-ran). Mirrors the lightweight persistence used for the Telegram offset, but as
-a shared JSON dict so any plugin can stash a scalar/dict under a key.
+ran). A shared JSON dict so any plugin can stash a scalar or dict under a key.
 """
 
 import json

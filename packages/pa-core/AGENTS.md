@@ -3,22 +3,9 @@
 ## Goal
 **Reliable shared infrastructure.** All plugins depend on this. Changes should be careful and minimal.
 
-## Session Start — MANDATORY
+## Session start
 
-**ALWAYS call `get_now()` at the very start of every session.** Do NOT rely on system-provided dates or assumptions about what day it is. This returns the actual local date, day of week, time, and period (morning/afternoon/evening).
-
-```python
-from pa_core.config import get_now
-now = get_now()  # Returns: date, day, time, timezone, period, display
-```
-
-Use this to:
-- Determine morning vs evening checkin (`now["period"]`)
-- Fetch the correct day's calendar events (`now["date"]`)
-- Check for tasks with upcoming due dates relative to the actual date
-- Display the correct day/date in briefings and greetings
-
-**Never assume the date from context or conversation metadata — always call `get_now()`.**
+Run `uv run pa-core memory brief` (or `uv run pa-core checkin` for a daily session) and get the date once with `uv run pa-core now` (or `get_now()` in Python). Do not rely on the harness's date, and do not call `get_now()` before every command.
 
 ## Key Components
 - `config.py` — Loads `.env` and `user.yaml`. Exports `get_secret()`, `get_user_config()`, `PA_ROOT`, `get_now()`
@@ -26,9 +13,10 @@ Use this to:
 - `log.py` — `get_logger(name)` for consistent logging
 - `setup.py` — Interactive first-run onboarding
 - `daily_log.py` — Per-day JSON event logging in `activity/daily/`
-  - `log_event(category, action, summary, details=None, project=None, links=None)` — append event (links: `{label: url}` dict for resource URLs)
+  - `log_event(category, action, summary, details=None, project=None, links=None)` — append event (links: `{label: url}` dict for resource URLs). From the shell: `uv run pa-core log <category> <action> "<summary>" --details '<json>' --link label=url`
   - `get_today_events()` / `get_events(date)` — read events
-  - Categories: `email`, `task`, `calendar`, `info`, `other`
+  - Categories: `email`, `task`, `calendar`, `info`, `wellness`, `habit`, `other`
+  - For structured metrics (wellness, habits, HR context). Narrative recall goes in the memory journal.
   - Session ID auto-generated per process
 - `briefing.py` — Daily briefing generator from log + calendar + tasks
   - `generate_briefing(date=None)` → markdown string
@@ -37,13 +25,23 @@ Use this to:
 - `flow_report.py` — Weekly opened/closed task aggregation + email-safe HTML
   - `aggregate_weeks(rows)` — buckets tasks into Monday-start weeks
   - Closed dates are **inferred** from last-edited time (Notion does not record status-change time), so recent closure counts can run high. The rendered report says so; don't present them as exact.
-- `cli.py` — CLI entry point with subcommands: `setup`, `briefing`, `log`
+- `memory.py` — Shared assistant memory (see below)
+- `prompts.py` — Deterministic morning and evening prompt text used by `checkin`
+- `cli.py` — CLI entry point: `setup`, `checkin`, `context`, `briefing`, `memory`, `log`, `report`
 
-## Evening Briefing — Important
+## Memory (`memory.py`)
 
-**The evening briefing MUST include an interactive check-in BEFORE generating the briefing.** Do NOT just run `pa-core briefing --evening` without first collecting habit and gratitude data — otherwise the briefing will say "not logged" for everything.
+Plain-file store at `private/memory/` (`$PA_MEMORY_DIR` or `memory_dir` in `user.yaml` override it):
 
-Flow: Send check-in questions via Telegram → wait for replies → log events → THEN generate briefing. See `pa-telegram/AGENTS.md` for the full interim flow.
+- `entries/<name>.md`: one entry per file, YAML frontmatter (`name`, `type`, `summary`, `tags`, `due`, `source`, `status`, `created`, `updated`) and a Markdown body.
+- `archive/<name>.md`: superseded entries and closed loops. Nothing is deleted.
+- `journal/YYYY-MM.md`: dated one-line notes.
+
+Types: `preference`, `lesson`, `person`, `fact`, `project`, `loop` (loops need a `due` date). Key functions: `add()` (upsert), `get()`, `list_entries()`, `search()`, `archive()`, `due_loops()`, `close_loop()`, `journal()`, `render_brief()`, `lint()`, `import_claude_memory()`. Tests isolate the store through `$PA_MEMORY_DIR` in the root `conftest.py`.
+
+## Evening briefing
+
+Collect the habit, gratitude and day-review answers in conversation and log them before running `pa-core briefing --evening`; otherwise the briefing reports everything as not logged.
 
 ## run_gws() Usage
 ```python

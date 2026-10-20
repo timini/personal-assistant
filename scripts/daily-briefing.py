@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Daily briefing script — can be run via cron or manually."""
+"""Daily briefing script. Run manually or from a harness-scheduled job."""
 
 from pa_core.briefing import generate_briefing, save_briefing
 import sys
