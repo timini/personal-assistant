@@ -61,6 +61,27 @@ def cmd_activities(args):
         print(_activity_line(a))
 
 
+def cmd_alerts(args):
+    """Garmin abnormal-HR alerts not yet explained in the daily log."""
+    from pa_core.context import unlabelled_hr_alerts
+    from pa_core.daily_log import get_events
+    end = date.fromisoformat(args.to or _today())
+    alerts = []
+    for offset in range(args.days - 1, -1, -1):
+        day = (end - timedelta(days=offset)).isoformat()
+        alerts += unlabelled_hr_alerts(get_health(day).get("abnormal_hr") or [], get_events(day))
+    if args.json:
+        print(json.dumps(alerts, indent=2, default=str))
+        return
+    if not alerts:
+        print("No unexplained HR alerts.")
+        return
+    for a in alerts:
+        print(f"  {a.get('date')} {a.get('time')}  {a.get('bpm')} bpm (threshold {a.get('threshold')})")
+    print("Record each answer: uv run pa-core log wellness hr_context \"<what it was>\" "
+          "--details '{\"date\": \"<date>\", \"time\": \"<time>\"}'")
+
+
 def main():
     parser = argparse.ArgumentParser(prog="pa-health", description="Garmin health and activity data")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -75,12 +96,19 @@ def main():
     act_p.add_argument("--to", help="End date YYYY-MM-DD (default today)")
     act_p.add_argument("--json", action="store_true")
 
+    al_p = sub.add_parser("alerts", help="Abnormal-HR alerts not yet explained in the daily log")
+    al_p.add_argument("--days", type=int, default=2, help="Number of days up to --to (default 2)")
+    al_p.add_argument("--to", help="End date YYYY-MM-DD (default today)")
+    al_p.add_argument("--json", action="store_true")
+
     args = parser.parse_args()
     try:
         if args.command == "day":
             cmd_day(args)
         elif args.command == "activities":
             cmd_activities(args)
+        elif args.command == "alerts":
+            cmd_alerts(args)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

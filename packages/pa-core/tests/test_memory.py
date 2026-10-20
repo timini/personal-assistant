@@ -212,3 +212,17 @@ class TestMemoryDir:
     def test_slugify_rejects_empty(self):
         with pytest.raises(ValueError):
             memory.slugify("!!!")
+
+
+class TestUpdate:
+    def test_append_adds_dated_paragraph(self, mem):
+        memory.add("project", "garden", "Quote due", body="First note.", today="2026-01-05")
+        entry = memory.update("garden", append="Quote received.", today="2026-01-07")
+        assert entry["body"] == "First note.\n\n2026-01-07: Quote received."
+        assert entry["summary"] == "Quote due"
+        assert entry["created"] == "2026-01-05"
+        assert entry["updated"] == "2026-01-07"
+
+    def test_update_unknown_raises(self, mem):
+        with pytest.raises(KeyError):
+            memory.update("missing", summary="x")

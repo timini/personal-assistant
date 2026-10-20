@@ -52,3 +52,25 @@ def test_activities_explicit_range_and_summary(capsys):
     m.assert_called_once_with("2026-10-01", "2026-10-15")
     assert "Run" in out
     assert "1 activities" in out
+
+
+def test_alerts_lists_only_unexplained(capsys):
+    alerts = [{"date": "2026-10-20", "time": "03:10", "bpm": 130, "threshold": 120},
+              {"date": "2026-10-20", "time": "14:00", "bpm": 125, "threshold": 120}]
+    day = {**EMPTY, "date": "2026-10-20", "ok": True, "abnormal_hr": alerts}
+    logged = [{"category": "wellness", "action": "hr_context",
+               "details": {"date": "2026-10-20", "time": "14:00"}}]
+    with patch("pa_health.cli.get_health", return_value=day), \
+         patch("pa_health.cli._today", return_value="2026-10-20"), \
+         patch("pa_core.daily_log.get_events", return_value=logged):
+        out = _run(["alerts", "--days", "1"], capsys)
+    assert "03:10" in out and "130 bpm" in out
+    assert "14:00" not in out
+
+
+def test_alerts_json_and_empty(capsys):
+    with patch("pa_health.cli.get_health", return_value={**EMPTY, "date": "d"}), \
+         patch("pa_health.cli._today", return_value="2026-10-20"), \
+         patch("pa_core.daily_log.get_events", return_value=[]):
+        out = _run(["alerts", "--json"], capsys)
+    assert json.loads(out) == []

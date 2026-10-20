@@ -2,6 +2,7 @@
 
 import importlib
 import re
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,7 +10,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 SKILLS = ROOT / ".claude" / "skills"
-EXPECTED = {"email-triage", "daily-checkin", "task-hygiene", "research-doc"}
+EXPECTED = {"email-triage", "daily-checkin", "task-hygiene", "research-doc", "visual-report"}
 CLIS = {"pa-core": "pa_core.cli", "pa-google": "pa_google.cli", "pa-notion": "pa_notion.cli",
         "pa-health": "pa_health.cli"}
 
@@ -69,3 +70,12 @@ def test_every_cli_command_in_a_skill_exists(skill):
 
 def test_no_instructions_md_stubs_remain():
     assert not list((ROOT / "packages").glob("*/INSTRUCTIONS.md"))
+
+
+@pytest.mark.parametrize("path", ["private/memory/entries/x.md", "private/drafts/x.txt",
+                                  "activity/reports/x/x.html", "activity/daily/x.jsonl",
+                                  "activity/.state.json"])
+def test_cli_managed_paths_are_ignored(path):
+    """AGENTS.md lets agents skip git check-ignore for these; keep that true."""
+    result = subprocess.run(["git", "check-ignore", "-q", path], cwd=ROOT)
+    assert result.returncode == 0, f"{path} is not ignored by git"

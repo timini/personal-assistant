@@ -189,3 +189,54 @@ def test_config_can_disable_insights(tmp_path):
     ):
         generate_report(date="2026-08-24", output_root=tmp_path, insights=True)
     claude.assert_not_called()
+
+
+def _visual_input():
+    return {
+        "title": "Half-term options",
+        "sections": [{
+            "heading": "Options",
+            "cards": [{"title": "Forest pod", "subtitle": "Weekend", "cost": "£235",
+                       "url": "https://example.com/pod", "points": ["No leave used"]}],
+            "table": {"columns": ["Club", "Date"],
+                      "rows": [[{"text": "Art club", "url": "https://example.com/art"}, "3 Nov"]]},
+            "calendar": [{"date": "2026-10-26", "label": "Mon", "items": [
+                {"text": "Grandparent covers", "kind": "covered", "url": "https://example.com/c"},
+                {"text": "<b>gap</b>", "kind": "gap"}]}],
+        }],
+    }
+
+
+def test_research_sections_render_cards_tables_and_calendar(tmp_path):
+    from pa_core.report import load_research_facts, render_html
+
+    path = tmp_path / "in.json"
+    path.write_text(json.dumps(_visual_input()))
+    html = render_html(load_research_facts(path, "2026-10-20"), insights=None)
+    assert 'href="https://example.com/pod"' in html and "£235" in html
+    assert 'href="https://example.com/art"' in html and "<th>Club</th>" in html
+    assert 'class="day"' in html and 'kind-covered' in html
+    assert "&lt;b&gt;gap&lt;/b&gt;" in html
+
+
+def test_generate_report_uses_name_for_files(tmp_path):
+    from pa_core.report import generate_report
+
+    path = tmp_path / "in.json"
+    path.write_text(json.dumps(_visual_input()))
+    bundle = generate_report(kind="research", date="2026-10-20", input_path=path,
+                             output_root=tmp_path / "out", insights=False, name="half-term")
+    assert bundle.html_path.name == "2026-10-20-half-term.html"
+    assert bundle.manifest_path.name == "2026-10-20-half-term-manifest.json"
+    assert bundle.report_id == "research-2026-10-20-half-term"
+
+
+def test_cli_report_passes_name(tmp_path, capsys):
+    from pa_core.cli import main
+
+    bundle = type("B", (), {"html_path": tmp_path / "x.html"})()
+    with patch("pa_core.report.generate_report", return_value=bundle) as gen, \
+         patch("sys.argv", ["pa-core", "report", "--kind", "research", "--input", "f.json",
+                            "--name", "half-term", "--dry-run"]):
+        main()
+    assert gen.call_args.kwargs["name"] == "half-term"

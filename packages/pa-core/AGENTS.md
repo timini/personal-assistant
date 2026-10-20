@@ -27,7 +27,8 @@ Run `uv run pa-core memory brief` (or `uv run pa-core checkin` for a daily sessi
   - Closed dates are **inferred** from last-edited time (Notion does not record status-change time), so recent closure counts can run high. The rendered report says so; don't present them as exact.
 - `memory.py` — Shared assistant memory (see below)
 - `prompts.py` — Deterministic morning and evening prompt text used by `checkin`
-- `cli.py` — CLI entry point: `setup`, `checkin`, `context`, `briefing`, `memory`, `log`, `report`
+- `cli.py`: CLI entry point: `setup`, `checkin`, `context`, `briefing`, `memory`, `log`, `now`, `report`. `checkin` and `briefing` back up to Drive at most once a day (`last_backup` in `activity/.state.json`).
+- `report.py`: research reports take JSON with `sections` holding `paragraphs`, `bullets`, `cards`, `table`, `calendar` and `sources`; see the `visual-report` skill. `--name` sets the output file names.
 
 ## Memory (`memory.py`)
 
@@ -37,7 +38,7 @@ Plain-file store at `private/memory/` (`$PA_MEMORY_DIR` or `memory_dir` in `user
 - `archive/<name>.md`: superseded entries and closed loops. Nothing is deleted.
 - `journal/YYYY-MM.md`: dated one-line notes.
 
-Types: `preference`, `lesson`, `person`, `fact`, `project`, `loop` (loops need a `due` date). Key functions: `add()` (upsert), `get()`, `list_entries()`, `search()`, `archive()`, `due_loops()`, `close_loop()`, `journal()`, `render_brief()`, `lint()`, `import_claude_memory()`. Tests isolate the store through `$PA_MEMORY_DIR` in the root `conftest.py`.
+Types: `preference`, `lesson`, `person`, `fact`, `project`, `loop` (loops need a `due` date). Key functions: `add()` (upsert), `update()` (change some fields or append a dated note; `pa-core memory update`), `get()`, `list_entries()`, `search()`, `archive()`, `due_loops()`, `close_loop()`, `journal()`, `render_brief()`, `lint()`, `import_claude_memory()`. Tests isolate the store through `$PA_MEMORY_DIR` in the root `conftest.py`.
 
 ## Evening briefing
 

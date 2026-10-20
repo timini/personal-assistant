@@ -14,7 +14,7 @@ Wraps `garminconnect` and normalises daily data through `get_health(date_str)`. 
 
 `activities` contains normalised `id`, `name`, `type`, `start`, `distance_km`, `duration_min`, `avg_hr`, `max_hr`, `calories`, `vo2max`, `intensity_minutes` and `is_pr`. Include relevant recorded activities in health summaries. Missing distance is `None`, not zero. An empty session list is `[]`. Activities can make a day `ok` even if the wellness summary is incomplete.
 
-`abnormal_hr` contains device alerts with `date`, `time`, `bpm`, `threshold` and `ts`. Follow private preferences about asking for context. Use `unlabelled_hr_alerts()` to avoid repeated questions and store responses only in private wellness logs.
+`abnormal_hr` contains device alerts with `date`, `time`, `bpm`, `threshold` and `ts`. Follow private preferences about asking for context. Use `uv run pa-health alerts` (which wraps `unlabelled_hr_alerts()`) to avoid repeated questions and store responses only in private wellness logs.
 
 For date ranges, use `uv run pa-health activities --from DATE --to DATE` (or `get_activities_range()`). Compare data across appropriate periods and state missing coverage.
 
@@ -27,6 +27,7 @@ Tokens live in `_token_dir()` and refresh through `_authenticated_client()`. Kee
 ```bash
 uv run pa-health day [--date YYYY-MM-DD] [--json]                 # one day, normalised by get_health()
 uv run pa-health activities [--days 7 | --from DATE --to DATE] [--json]
+uv run pa-health alerts [--days 2] [--json]                     # HR alerts with no hr_context entry yet
 ```
 
 Command output contains private data: do not paste it into tracked documentation or public issues.

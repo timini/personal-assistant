@@ -99,3 +99,22 @@ def test_import_claude(tmp_path, capsys):
     (src / "f.md").write_text("---\nname: x\ndescription: X rule\ntype: feedback\n---\nBody\n")
     run("import-claude", str(src))
     assert "Imported 1" in capsys.readouterr().out
+
+
+def test_update_changes_only_given_fields_and_appends(capsys):
+    run("add", "loop", "car order", "Order not submitted", "--body", "Quote found.", "--due", "2026-10-20")
+    run("update", "car-order", "--summary", "Documents signed; awaiting approval",
+        "--append", "Both documents signed.", "--due", "2026-10-22")
+    entry = memory.get("car-order")
+    assert entry["summary"] == "Documents signed; awaiting approval"
+    assert entry["due"] == "2026-10-22"
+    assert entry["type"] == "loop"
+    assert entry["body"].startswith("Quote found.")
+    assert "Both documents signed." in entry["body"]
+    assert "Updated car-order" in capsys.readouterr().out
+
+
+def test_update_missing_entry_exits(capsys):
+    with pytest.raises(SystemExit):
+        run("update", "nope", "--summary", "x")
+    assert "No memory entry" in capsys.readouterr().err

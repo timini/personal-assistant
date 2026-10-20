@@ -27,10 +27,22 @@ def cmd_briefing(args):
         _backup()
 
 
+def _today() -> str:
+    from pa_core.config import get_now
+    return get_now()["date"]
+
+
 def _backup(stream=None):
+    """Back up to Drive at most once a day; a failed backup is retried next run."""
+    from pa_core.state import get_state, set_state
+    today = _today()
+    if get_state("last_backup") == today:
+        print("Backup already done today", file=stream or sys.stdout)
+        return
     try:
         from pa_google.drive import run_backup
         result = run_backup()
+        set_state("last_backup", today)
         print(f"Backup uploaded: {result['filename']}", file=stream or sys.stdout)
     except Exception as exc:
         print(f"Backup failed: {exc}", file=sys.stderr)
@@ -114,6 +126,11 @@ def cmd_memory(args):
             entry = memory.add(args.type, args.name, args.summary, body=args.body,
                                tags=tags, due=args.due, source=args.source)
             print(f"Saved {entry['type']} {entry['name']}")
+        elif args.memory_command == "update":
+            tags = [t.strip() for t in (args.tags or "").split(",") if t.strip()]
+            entry = memory.update(args.name, summary=args.summary, append=args.append,
+                                  due=args.due, tags=tags or None)
+            print(f"Updated {entry['name']}")
         elif args.memory_command == "show":
             entry = memory.get(args.name)
             if entry is None:
@@ -188,6 +205,7 @@ def cmd_report(args):
         date=args.date,
         input_path=Path(args.input) if args.input else None,
         insights=not args.no_insights,
+        name=args.name,
     )
     print(f"HTML report: {bundle.html_path}")
     if args.deliver and not args.dry_run:
@@ -238,6 +256,12 @@ def main():
     ma.add_argument("--tags", default=None, help="Comma-separated tags")
     ma.add_argument("--due", default=None, help="Loops: next check date YYYY-MM-DD")
     ma.add_argument("--source", default=None, help="Where this came from (email link, conversation)")
+    mu = msub.add_parser("update", help="Change some fields of an entry, or append a dated note")
+    mu.add_argument("name")
+    mu.add_argument("--summary", default=None, help="New one-line summary")
+    mu.add_argument("--append", default=None, help="Add a dated paragraph to the body")
+    mu.add_argument("--due", default=None, help="New due date YYYY-MM-DD")
+    mu.add_argument("--tags", default=None, help="Replace tags (comma-separated)")
     ms = msub.add_parser("show", help="Show one entry in full")
     ms.add_argument("name")
     mq = msub.add_parser("search", help="Search entries and the journal")
@@ -275,6 +299,7 @@ def main():
     rp.add_argument("--kind", choices=("daily", "health", "tasks", "research"), default="daily")
     rp.add_argument("--date", default=None, help="Report date (YYYY-MM-DD), defaults to today")
     rp.add_argument("--input", default=None, help="Structured JSON input for a research report")
+    rp.add_argument("--name", default=None, help="Short slug for the output files, e.g. half-term")
     rp.add_argument("--no-insights", action="store_true", help="Skip optional Claude insights")
     rp.add_argument("--deliver", action="store_true", help="Publish to Drive and send by email")
     rp.add_argument("--dry-run", action="store_true", help="Generate locally without external delivery")

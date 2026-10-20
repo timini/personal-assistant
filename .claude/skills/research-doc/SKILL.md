@@ -7,6 +7,8 @@ description: Do research for the user and save it as a Google Doc linked from th
 
 Research that is not saved gets redone. Save it where the user and the next session can find it.
 
+If the user asks for a report, a visual plan or a comparison to look at, use the `visual-report` skill instead.
+
 ## Steps
 
 1. Find the related task (`uv run pa-notion tasks list --open --search "<topic>"`) and read its notes with `uv run pa-notion tasks show <id>` so you build on what is already known.

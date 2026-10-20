@@ -42,7 +42,11 @@ h1{font-size:30px;line-height:1.15;margin:6px 0}h2{margin-top:32px;border-bottom
 .metric{font:700 24px/1.1 ui-monospace,SFMono-Regular,monospace}.label{font-size:12px;color:var(--muted)}
 table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:12px}
 .bar{height:9px;background:var(--blue);border-radius:4px}.done{color:var(--green)}.warn{color:var(--red)}.insights{border-left:4px solid var(--blue);padding-left:18px}
-footer{margin-top:36px;color:var(--muted);font-size:12px}@media(max-width:600px){main{padding:22px 16px}h1{font-size:25px}}
+footer{margin-top:36px;color:var(--muted);font-size:12px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.cards .card h3{margin:0 0 4px}.cost{font:700 20px/1.2 ui-monospace,SFMono-Regular,monospace}
+.cal{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}.day{border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13px}
+.day .label{font-weight:700;color:var(--ink)}.item{border-radius:6px;padding:4px 6px;margin-top:6px;background:var(--panel)}
+.kind-covered{background:#dff3e9}.kind-gap{background:#fbe1dc}.kind-leave{background:#fff1cc}.kind-trip{background:#dde8fb}a{color:var(--blue)}@media(max-width:600px){main{padding:22px 16px}h1{font-size:25px}}
 @media print{body{background:#fff}main{max-width:none;padding:0}}
 </style></head><body><main>
 <div class="eyebrow">{{ facts.kind }} report · {{ facts.date }}</div><h1>{{ facts.title }}</h1>
@@ -69,6 +73,13 @@ footer{margin-top:36px;color:var(--muted);font-size:12px}@media(max-width:600px)
 {% if facts.sections %}{% for section in facts.sections %}<section><h2>{{ section.heading }}</h2>
 {% for paragraph in section.paragraphs|default([]) %}<p>{{ paragraph }}</p>{% endfor %}
 {% if section.bullets|default([]) %}<ul>{% for bullet in section.bullets %}<li>{{ bullet }}</li>{% endfor %}</ul>{% endif %}
+{% if section.cards|default([]) %}<div class="cards">{% for c in section.cards %}<div class="card"><h3>{% if c.url %}<a href="{{ c.url }}">{{ c.title }}</a>{% else %}{{ c.title }}{% endif %}</h3>
+{% if c.subtitle %}<div class="label">{{ c.subtitle }}</div>{% endif %}{% if c.cost %}<div class="cost">{{ c.cost }}</div>{% endif %}
+{% if c.points|default([]) %}<ul>{% for p in c.points %}<li>{{ p }}</li>{% endfor %}</ul>{% endif %}</div>{% endfor %}</div>{% endif %}
+{% if section.calendar|default([]) %}<div class="cal">{% for d in section.calendar %}<div class="day"><div class="label">{{ d.label|default('') }} {{ d.date }}</div>
+{% for i in d["items"]|default([]) %}<div class="item kind-{{ i.kind|default('other') }}">{% if i.url %}<a href="{{ i.url }}">{{ i.text }}</a>{% else %}{{ i.text }}{% endif %}</div>{% endfor %}</div>{% endfor %}</div>{% endif %}
+{% if section.table %}<table><thead><tr>{% for col in section.table.columns %}<th>{{ col }}</th>{% endfor %}</tr></thead><tbody>
+{% for row in section.table.rows %}<tr>{% for cell in row %}<td>{% if cell is mapping %}{% if cell.url %}<a href="{{ cell.url }}">{{ cell.text }}</a>{% else %}{{ cell.text }}{% endif %}{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table>{% endif %}
 {% if section.sources|default([]) %}<h3>Sources</h3><ul>{% for source in section.sources %}<li><a href="{{ source.url }}">{{ source.label }}</a></li>{% endfor %}</ul>{% endif %}
 </section>{% endfor %}{% endif %}
 {% if facts.wins %}<section><h2>Wins</h2><ul>{% for win in facts.wins %}<li>{{ win }}</li>{% endfor %}</ul></section>{% endif %}
@@ -257,18 +268,20 @@ def generate_insights(facts: dict[str, Any], cache_dir: Path) -> dict[str, Any] 
 
 
 def generate_report(kind: str = "daily", date: str | None = None, input_path: Path | None = None,
-                    output_root: Path | None = None, insights: bool = True) -> ReportBundle:
+                    output_root: Path | None = None, insights: bool = True,
+                    name: str | None = None) -> ReportBundle:
     date_str = date or get_now()["date"]
     facts = load_research_facts(input_path, date_str) if kind == "research" and input_path else collect_daily_facts(date_str, kind)
     if kind == "research" and not input_path:
         raise ValueError("Research reports require --input JSON")
-    report_id = f"{kind}-{date_str}"
+    report_id = f"{kind}-{date_str}-{name}" if name else f"{kind}-{date_str}"
     root = (output_root or REPORTS_DIR) / date_str
     root.mkdir(parents=True, exist_ok=True)
     insights_enabled = get_user_config().get("reports", {}).get("insights_enabled", True)
     generated_insights = generate_insights(facts, root / ".insights") if insights and insights_enabled else None
-    html_path = root / f"{date_str}-{kind}-report.html"
-    manifest_path = root / f"{date_str}-{kind}-manifest.json"
+    stem = f"{date_str}-{name}" if name else f"{date_str}-{kind}"
+    html_path = root / (f"{stem}.html" if name else f"{stem}-report.html")
+    manifest_path = root / f"{stem}-manifest.json"
     html_path.write_text(render_html(facts, generated_insights), encoding="utf-8")
     manifest_path.write_text(json.dumps({"report_id": report_id, "kind": kind, "date": date_str,
         "facts_sha256": _facts_hash(facts), "html": html_path.name, "deliveries": {}}, indent=2))

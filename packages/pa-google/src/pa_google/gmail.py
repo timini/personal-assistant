@@ -184,3 +184,23 @@ def read_email(message_id: str) -> dict:
 def get_email_body(message_id: str) -> str:
     """Get the readable body of an email."""
     return read_email(message_id)["body"]
+
+
+def send_draft(message_id: str) -> dict:
+    """Send the draft whose message id (the id in the draft link) matches, then confirm it is in Sent.
+
+    Only call this after the user has approved the draft.
+    """
+    drafts = run_gws("gmail", "users.drafts", "list", {"userId": "me", "maxResults": 500}).get("drafts", [])
+    draft = next((d for d in drafts if d.get("id") == message_id
+                  or (d.get("message") or {}).get("id") == message_id), None)
+    if draft is None:
+        raise ValueError(f"No draft with message id {message_id}")
+    sent = run_gws("gmail", "users.drafts", "send", {"userId": "me"}, body={"id": draft["id"]})
+    msg = run_gws("gmail", "users.messages", "get",
+                  {"userId": "me", "id": sent["id"], "format": "metadata", "metadataHeaders": ["To", "Subject"]})
+    if "SENT" not in msg.get("labelIds", []):
+        raise RuntimeError(f"Message {sent['id']} is not labelled SENT")
+    headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
+    return {"id": sent["id"], "to": headers.get("To", ""), "subject": headers.get("Subject", ""),
+            "link": f"https://mail.google.com/mail/u/0/#sent/{sent['id']}"}

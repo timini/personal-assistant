@@ -5,6 +5,13 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _isolate_state(tmp_path, monkeypatch):
+    """Keep backup bookkeeping out of the real activity/.state.json."""
+    import pa_core.state as state
+    monkeypatch.setattr(state, "_state_file", lambda: tmp_path / ".state.json")
+
+
 # ---------------------------------------------------------------------------
 # cmd_setup
 # ---------------------------------------------------------------------------
@@ -192,3 +199,24 @@ class TestCmdLogOptions:
                 main()
         mock_log.assert_not_called()
         assert "habit" in capsys.readouterr().err
+
+
+class TestBackupOncePerDay:
+    @pytest.fixture(autouse=True)
+    def today(self, monkeypatch):
+        monkeypatch.setattr("pa_core.cli._today", lambda: "2026-10-20", raising=False)
+
+    def test_second_backup_same_day_is_skipped(self, capsys):
+        from pa_core.cli import _backup
+        with patch("pa_google.drive.run_backup", return_value={"filename": "b.tar.gz"}) as run:
+            _backup()
+            _backup()
+        assert run.call_count == 1
+        assert "already done today" in capsys.readouterr().out
+
+    def test_failed_backup_is_retried(self, capsys):
+        from pa_core.cli import _backup
+        with patch("pa_google.drive.run_backup", side_effect=[RuntimeError("x"), {"filename": "b"}]) as run:
+            _backup()
+            _backup()
+        assert run.call_count == 2

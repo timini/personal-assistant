@@ -146,6 +146,33 @@ def add(
     return entry
 
 
+def update(
+    name: str,
+    summary: str | None = None,
+    append: str | None = None,
+    due: str | None = None,
+    tags: list[str] | tuple[str, ...] | None = None,
+    today: str | None = None,
+) -> dict:
+    """Change only the given fields of an existing entry. `append` adds a dated paragraph."""
+    entry = get(name)
+    if entry is None:
+        raise KeyError(f"No memory entry named {name!r}")
+    today = today or _today()
+    if summary and summary.strip():
+        entry["summary"] = summary.strip()
+    if due:
+        entry["due"] = due
+    if tags:
+        entry["tags"] = list(tags)
+    if append and append.strip():
+        note = f"{today}: {append.strip()}"
+        entry["body"] = f"{entry['body']}\n\n{note}" if entry.get("body") else note
+    entry["updated"] = today
+    _write(_entry_path(entry["name"]), entry)
+    return entry
+
+
 def get(name: str) -> dict | None:
     path = _entry_path(slugify(name))
     return _read(path) if path.exists() else None

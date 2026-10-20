@@ -4,7 +4,7 @@ import argparse
 import json
 import sys
 
-from pa_google.gmail import archive_email, create_draft, get_inbox_emails, read_email
+from pa_google.gmail import archive_email, create_draft, get_inbox_emails, read_email, send_draft
 from pa_google.calendar import (
     add_event,
     check_calendars,
@@ -156,6 +156,20 @@ def cmd_draft(args):
     print(f"Draft created: {result['link']}")
 
 
+def cmd_send(args):
+    """Send approved drafts and confirm each is in Sent."""
+    failed = False
+    for message_id in args.ids:
+        try:
+            sent = send_draft(message_id)
+            print(f"Sent to {sent['to']}: {sent['subject']}  {sent['link']}")
+        except Exception as e:
+            failed = True
+            print(f"Error sending {message_id}: {e}", file=sys.stderr)
+    if failed:
+        sys.exit(1)
+
+
 def _print_event(event: dict, verb: str, as_json: bool):
     if as_json:
         print(json.dumps(event, indent=2))
@@ -242,6 +256,9 @@ def main():
     draft_p.add_argument("--body-file", help="Read the body from this file")
     draft_p.add_argument("--thread", help="Thread id, to reply in that conversation")
 
+    send_p = sub.add_parser("send", help="Send approved drafts (id from the draft link) and verify Sent")
+    send_p.add_argument("ids", nargs="+", help="Draft message ids, as in #drafts/<id>")
+
     event_p = sub.add_parser("event", help="Add, show, update or delete a calendar event")
     event_sub = event_p.add_subparsers(dest="action", required=True)
     ev_add = event_sub.add_parser("add", help="Create an event (Google assigns the id)")
@@ -289,6 +306,8 @@ def main():
         cmd_archive(args)
     elif args.command == "draft":
         cmd_draft(args)
+    elif args.command == "send":
+        cmd_send(args)
     elif args.command == "event":
         cmd_event(args)
     elif args.command == "calendar-check":

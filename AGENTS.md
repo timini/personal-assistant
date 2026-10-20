@@ -10,7 +10,7 @@ Treat this repository as public. Tracked files hold reusable behaviour and techn
 
 - Personal data lives only in ignored, untracked locations: `user.yaml`, `.env`, `user-instructions.md`, `private/` (including the memory store) and `activity/`. Non-secret personal data is still private.
 - Use synthetic examples and placeholders in docs, fixtures, filenames, commit messages and PR descriptions. Never copy a real task, email, appointment, name or health reading into a tracked file.
-- Before writing a private file, check the destination is ignored and untracked (`git check-ignore -v <path>`; `git ls-files <path>` must print nothing).
+- Before writing a private file at a new path, check the destination is ignored and untracked (`git check-ignore -v <path>`; `git ls-files <path>` must print nothing). The PA CLIs (`pa-core memory`, `log` and `report`) and the folders `activity/` and `private/drafts/` are already ignored, and a test keeps them that way, so skip the check for them.
 - Before a commit, inspect `git status --short` and the full staged diff, and stage explicit paths only. Never `git add -A`, never force-add a private file.
 - If private data reaches a tracked file, remove it and tell the user that history may still hold it. Do not rewrite history or force-push without agreement.
 
@@ -105,19 +105,20 @@ Procedures that only matter at certain times are skills in `.claude/skills/` (sh
 | `daily-checkin` | Morning check-in and day plan, evening review |
 | `task-hygiene` | Weekly task review (offer it on Sunday evenings) |
 | `research-doc` | Research saved to a Google Doc and linked from the task |
+| `visual-report` | A report, visual plan or options comparison as HTML and PDF, saved to Drive and emailed |
 
 ## Tasks (Notion)
 
 - Every task needs a clear, actionable title, a status, a priority and a project. Set a due date only for real deadlines, and give lead time: due a few days before the actual deadline, never on the lapse date itself.
 - Keep task notes current: decisions, emails, drafts and next steps, with links. Long notes are split automatically.
-- Lanes: `🔥 Live` (chosen, being worked), `🅿️ Parked`, `💤 Someday`. Keep at most 3 Live projects and pick at most 3 tasks a day, matched to energy.
+- Lanes: `🔥 Live` (chosen, being worked), `🅿️ Parked`, `💤 Someday`. Keep at most 3 Live projects and pick at most 3 tasks a day.
 - Never mark a task Done without the user's confirmation or a verified receipt.
 - Weekly hygiene: use the `task-hygiene` skill. Propose decisions in a batch; don't apply them unasked.
 - Batch how tasks are done, not how they are stored. Group payments, shopping, calls and computer work into sessions and work through one batch at a time.
 
 ## Daily rhythm
 
-Check in once a day: the memory brief says whether it has happened. Ask at a natural point, after any urgent request, never twice in a day. The `daily-checkin` skill has the morning and evening steps. Match load to energy.
+Check in once a day: the memory brief says whether it has happened. Ask at a natural point, after any urgent request, never twice in a day. The `daily-checkin` skill has the morning and evening steps. When the user is tired or overwhelmed, help them start one priority rather than suggesting an easy day.
 
 ## Tool notes and recovery
 
@@ -138,11 +139,12 @@ Check in once a day: the memory brief says whether it has happened. Ask at a nat
 # Session
 uv run pa-core checkin [--evening] [--json] [--no-backup]   # context + memory brief + prompt
 uv run pa-core context [--json]                             # context only
-uv run pa-core memory brief|search|add|show|list|done|archive|journal|lint
+uv run pa-core memory brief|search|add|update|show|list|done|archive|journal|lint
+uv run pa-core memory update <name> [--summary S] [--append TEXT] [--due DATE]   # change part of an entry
 
 # Briefings, logs, reports
 uv run pa-core briefing [--evening] [--save] [--no-backup]
-uv run pa-core report --kind daily|health|tasks|research [--deliver] [--input facts.json]
+uv run pa-core report --kind daily|health|tasks|research [--input facts.json] [--name slug] [--deliver | --dry-run]
 uv run pa-core now                                          # date and time in the user's zone
 uv run pa-core log <category> <action> "<summary>" [--details '<json>'] [--link label=url]
 
@@ -158,6 +160,7 @@ uv run pa-google emails [--since-last] [--mark-triaged] [--unread] [--query "gma
 uv run pa-google read <message-id> [--json]                 # full body, attachments, thread id
 uv run pa-google archive <message-id> [<message-id> ...]    # archives whole threads
 uv run pa-google draft --to X --subject S (--body T | --body-file F) [--thread ID]
+uv run pa-google send <draft-id> [<draft-id> ...]          # only after the user approves; verifies Sent
 uv run pa-google calendar [--days 7] [--json]               # events include ids
 uv run pa-google event add "Title" --start 2026-01-08T14:00 [--end ...] [--calendar Family] [--attendee a@x]
 uv run pa-google event show|update|delete <id> [--calendar Family] [--title ...] [--start ...] [--end ...]
@@ -167,6 +170,7 @@ uv run pa-google backup [--keep 10]
 # Health
 uv run pa-health day [--date DATE] [--json]
 uv run pa-health activities [--days 7 | --from DATE --to DATE] [--json]
+uv run pa-health alerts [--days 2] [--json]                # HR alerts not yet explained
 
 # Other
 uv run python scripts/task_snapshot.py        # task-flow snapshot

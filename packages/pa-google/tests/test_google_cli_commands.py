@@ -129,3 +129,40 @@ def test_cli_event_add_bad_times_exits_cleanly(capsys):
     with patch("pa_google.cli.add_event", side_effect=ValueError("End before start")):
         with pytest.raises(SystemExit):
             _run(["event", "add", "X", "--start", "2026-11-02T09:00", "--end", "2026-11-02T08:00"], capsys)
+
+
+def test_send_draft_finds_draft_by_message_id_and_verifies_sent():
+    from pa_google.gmail import send_draft
+
+    def fake(service, resource, method, params=None, body=None, **kw):
+        if (resource, method) == ("users.drafts", "list"):
+            return {"drafts": [{"id": "r-1", "message": {"id": "other"}},
+                               {"id": "r-2", "message": {"id": "m9"}}]}
+        if (resource, method) == ("users.drafts", "send"):
+            assert body == {"id": "r-2"}
+            return {"id": "s1", "threadId": "t1"}
+        if (resource, method) == ("users.messages", "get"):
+            return {"id": "s1", "labelIds": ["SENT"], "payload": {"headers": [
+                {"name": "To", "value": "a@example.com"}, {"name": "Subject", "value": "Hi"}]}}
+        raise AssertionError((resource, method))
+
+    with patch("pa_google.gmail.run_gws", side_effect=fake):
+        sent = send_draft("m9")
+    assert sent == {"id": "s1", "to": "a@example.com", "subject": "Hi",
+                    "link": "https://mail.google.com/mail/u/0/#sent/s1"}
+
+
+def test_send_draft_unknown_id_raises():
+    from pa_google.gmail import send_draft
+
+    with patch("pa_google.gmail.run_gws", return_value={"drafts": []}):
+        with pytest.raises(ValueError):
+            send_draft("missing")
+
+
+def test_cli_send_prints_links(capsys):
+    sent = {"id": "s1", "to": "a@example.com", "subject": "Hi", "link": "https://sent/s1"}
+    with patch("pa_google.cli.send_draft", return_value=sent) as m:
+        out = _run(["send", "m1", "m2"], capsys)
+    assert m.call_count == 2
+    assert "Sent to a@example.com: Hi  https://sent/s1" in out

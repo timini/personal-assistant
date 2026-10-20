@@ -9,13 +9,15 @@ Check in once a day. If the memory brief says it has not happened, ask at a natu
 
 ## Morning
 
-1. `uv run pa-core checkin`. It prints the date, memory brief, calendar, inbox, tasks, health and a morning prompt.
+1. `uv run pa-core checkin`. It prints the date, memory brief, calendar, inbox, tasks, health and a morning prompt. Note what today's log already holds (mood, meals, medication, habits) and do not ask for it again.
 2. Ask what is urgent.
 3. Show today's schedule. Flag appointments that need action or travel: time, place, what to bring.
-4. Ask how they are and log it: `uv run pa-core log wellness check_in "<summary>" --details '<json>'`.
-5. Offer a shortlist of at most three tasks matched to energy. Strong day: harder items. Low day: one or two easy wins and protect the rest. Combine signals: the check-in, calendar density and sleep (`uv run pa-health day`).
-6. Let the user choose, then set the chosen tasks due today: `uv run pa-notion tasks update <id> --due <today>`. The plan is finished when the user has chosen, not when you have proposed.
-7. Work any **Due now** loops from the brief: resolve, chase with a draft, or move the date with a reason.
+4. Ask how they are and log it: `uv run pa-core log wellness check_in "<summary>" --details '<json>'`. Read sleep from `uv run pa-health day`; do not ask about it.
+5. Run `uv run pa-health alerts` and ask about each unexplained HR alert. Log each answer as the command shows.
+6. Propose one specific exercise slot from today's calendar and ask for a commitment. Follow up at the next check-in on what actually happened.
+7. Offer a shortlist of at most three tasks. On a strong day, include harder items. On a tired, stressed or overwhelmed day, do not suggest an easy day: overwhelm usually comes from the backlog, and putting work off makes it worse. Pick one useful priority, name a small first action and a clear finish line, and help start it. If the user says there is too much to do, choose the first task yourself and start it with them.
+8. Let the user choose, then set the chosen tasks due today: `uv run pa-notion tasks update <id> --due <today>`. The plan is finished when the user has chosen, not when you have proposed.
+9. Work any **Due now** loops from the brief: resolve, chase with a draft, or move the date with a reason.
 
 ## Evening
 

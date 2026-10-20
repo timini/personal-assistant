@@ -56,6 +56,8 @@ uv run pa-google draft --to recipient@example.com --subject "Re: Thread subject"
 ```
 This wraps `create_draft()` in `pa_google.gmail`.
 
+When the user approves a draft ("send it", "send both"), send it with `uv run pa-google send <draft-id> [...]`, using the id from the `#drafts/<id>` link. It wraps `send_draft()`, which checks the message is labelled SENT and prints the Sent link. Never send without that approval.
+
 **Do NOT build raw RFC 2822 messages manually** — `create_draft()` uses `email.mime` for proper encoding and auto-recovers if Gmail silently trashes the draft (a known Gmail API quirk with malformed headers).
 
 **NEVER use the Gmail MCP tool (`mcp__claude_ai_Gmail__gmail_create_draft`)** — it has a known bug where using `threadId` produces drafts with empty bodies. Use `pa-google draft`, which handles encoding, trash detection, and recovery correctly.
