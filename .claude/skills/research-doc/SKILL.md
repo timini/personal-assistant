@@ -7,6 +7,8 @@ description: Do research for the user and save it as a Google Doc linked from th
 
 Research that is not saved gets redone. Save it where the user and the next session can find it.
 
+When the research starts from an email, read it in full first and archive it once the Doc is linked from the task, as the `email-triage` skill describes.
+
 If the user asks for a report, a visual plan or a comparison to look at, use the `visual-report` skill instead.
 
 ## Steps

@@ -309,7 +309,27 @@ def _checked_in_today(today: str) -> str | None:
     return None
 
 
-def render_brief(today: str | None = None, checked_in=_UNSET) -> str:
+def _last_triage() -> dict | None:
+    """The cursor `pa-google emails --mark-triaged` saves: {epoch, display}."""
+    from pa_core.state import get_state
+    return get_state("last_email_triage")
+
+
+def _triaged_today(today: str, last=_UNSET) -> str | None:
+    """Time (HH:MM, user's time zone) of today's email triage, if it has happened."""
+    import zoneinfo
+
+    from pa_core.config import get_user_config
+    if last is _UNSET:
+        last = _last_triage()
+    if not isinstance(last, dict) or not last.get("epoch"):
+        return None
+    tz = zoneinfo.ZoneInfo(get_user_config().get("timezone", "Europe/London"))
+    when = datetime.datetime.fromtimestamp(last["epoch"], tz)
+    return when.strftime("%H:%M") if when.date().isoformat() == today else None
+
+
+def render_brief(today: str | None = None, checked_in=_UNSET, triaged=_UNSET) -> str:
     """Compact session-start context. Empty string when the store is empty."""
     today = today or _today()
     entries = list_entries()
@@ -320,6 +340,10 @@ def render_brief(today: str | None = None, checked_in=_UNSET) -> str:
 
     lines = ["## Memory brief", ""]
     lines.append(f"Check-in: done today at {checked_in}" if checked_in else "Check-in: not yet today")
+    if triaged is _UNSET:
+        triaged = _triaged_today(today)
+    lines.append(f"Email triage: done today at {triaged}" if triaged else
+                 "Email triage: not yet today. Load the email-triage skill before planning the day.")
     lines.append("")
 
     due = due_loops(today)

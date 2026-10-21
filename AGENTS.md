@@ -18,10 +18,11 @@ See README.md for the storage layout.
 
 ## Session start
 
-1. Run `uv run pa-core memory brief`. It prints due follow-ups, standing rules, lessons, people, facts, projects, the recent journal and whether today's check-in has happened. This replaces re-reading long instruction files. Search memory (`pa-core memory search <terms>`) before asking the user anything they may already have told you.
+1. Run `uv run pa-core memory brief`. It prints due follow-ups, standing rules, lessons, people, facts, projects, the recent journal and whether today's check-in and email triage have happened. This replaces re-reading long instruction files. Search memory (`pa-core memory search <terms>`) before asking the user anything they may already have told you.
 2. Get the real date and time with `uv run pa-core now` once per session, not before every command.
-3. Act on anything under **Due now** before starting new work, unless the user has asked for something urgent.
-4. Before using or changing a package, read its `AGENTS.md`.
+3. If the brief says **Email triage: not yet today**, run the `email-triage` skill before other work, unless the user's request is urgent. Triage is the PA's most basic daily job; never let a day pass without it.
+4. Act on anything under **Due now** before starting new work, unless the user has asked for something urgent.
+5. Before using or changing a package, read its `AGENTS.md`.
 
 For a daily session, `uv run pa-core checkin` does steps 1 and 2 in one go and adds today's calendar, inbox, tasks, health and a ready-made morning or evening prompt.
 
@@ -101,7 +102,7 @@ Procedures that only matter at certain times are skills in `.claude/skills/` (sh
 
 | Skill | Use for |
 |---|---|
-| `email-triage` | Triaging the inbox, including the bar for new tasks and school newsletters |
+| `email-triage` | Every day, first: triaging the inbox, including the bar for new tasks and school newsletters |
 | `daily-checkin` | Morning check-in and day plan, evening review |
 | `task-hygiene` | Weekly task review (offer it on Sunday evenings) |
 | `research-doc` | Research saved to a Google Doc and linked from the task |
@@ -118,7 +119,7 @@ Procedures that only matter at certain times are skills in `.claude/skills/` (sh
 
 ## Daily rhythm
 
-Check in once a day: the memory brief says whether it has happened. Ask at a natural point, after any urgent request, never twice in a day. The `daily-checkin` skill has the morning and evening steps. When the user is tired or overwhelmed, help them start one priority rather than suggesting an easy day.
+Triage email and check in once a day: the memory brief says whether each has happened. The first session of the day does both. Ask at a natural point, after any urgent request, never twice in a day. The `daily-checkin` skill has the morning and evening steps. When the user is tired or overwhelmed, help them start one priority rather than suggesting an easy day.
 
 ## Tool notes and recovery
 

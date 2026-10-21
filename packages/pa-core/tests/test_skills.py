@@ -79,3 +79,14 @@ def test_cli_managed_paths_are_ignored(path):
     """AGENTS.md lets agents skip git check-ignore for these; keep that true."""
     result = subprocess.run(["git", "check-ignore", "-q", path], cwd=ROOT)
     assert result.returncode == 0, f"{path} is not ignored by git"
+
+
+@pytest.mark.parametrize("skill", sorted(EXPECTED - {"email-triage"}))
+def test_other_skills_point_to_email_triage(skill):
+    assert "email-triage" in (SKILLS / skill / "SKILL.md").read_text()
+
+
+def test_morning_checkin_triages_email():
+    text = (SKILLS / "daily-checkin" / "SKILL.md").read_text()
+    morning = text.split("## Morning", 1)[1].split("## Evening", 1)[0]
+    assert "email-triage" in morning

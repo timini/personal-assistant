@@ -38,7 +38,7 @@ Plain-file store at `private/memory/` (`$PA_MEMORY_DIR` or `memory_dir` in `user
 - `archive/<name>.md`: superseded entries and closed loops. Nothing is deleted.
 - `journal/YYYY-MM.md`: dated one-line notes.
 
-Types: `preference`, `lesson`, `person`, `fact`, `project`, `loop` (loops need a `due` date). Key functions: `add()` (upsert), `update()` (change some fields or append a dated note; `pa-core memory update`), `get()`, `list_entries()`, `search()`, `archive()`, `due_loops()`, `close_loop()`, `journal()`, `render_brief()`, `lint()`, `import_claude_memory()`. Tests isolate the store through `$PA_MEMORY_DIR` in the root `conftest.py`.
+Types: `preference`, `lesson`, `person`, `fact`, `project`, `loop` (loops need a `due` date). Key functions: `add()` (upsert), `update()` (change some fields or append a dated note; `pa-core memory update`), `get()`, `list_entries()`, `search()`, `archive()`, `due_loops()`, `close_loop()`, `journal()`, `render_brief()` (also says whether today's check-in and email triage have happened), `lint()`, `import_claude_memory()`. Tests isolate the store through `$PA_MEMORY_DIR` in the root `conftest.py`.
 
 ## Evening briefing
 

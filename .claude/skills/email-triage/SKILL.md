@@ -1,6 +1,6 @@
 ---
 name: email-triage
-description: Triage the user's Gmail inbox to empty. Use when asked to triage, check, clear or go through email, or as part of a morning check-in. Covers incremental triage since the last pass, the six outcomes per email, the bar for new tasks, and reading school newsletters in full.
+description: Triage the user's Gmail inbox to empty. Run it first thing every day (the memory brief says when it has not happened yet), as part of the morning and evening check-in, and whenever asked to triage, check, clear or go through email. Covers incremental triage since the last pass, the six outcomes per email, the bar for new tasks, and reading school newsletters in full.
 ---
 
 # Email triage
@@ -14,7 +14,7 @@ Goal: an empty inbox, and only real work in the task list. Turning mail into tas
 3. Give each email exactly one outcome (below).
 4. Archive with `uv run pa-google archive <id> [<id> ...]`. It archives whole threads.
 5. Finish with `uv run pa-google emails --mark-triaged`. Mail that arrives mid-pass is picked up next time.
-6. Summarise in a few lines: what needs the user, what you did, and how many you archived. Then `uv run pa-core memory journal "Triage: ..."` with the counts.
+6. Summarise in a few lines, starting with anything urgent (due today, money at risk, a deadline): what needs the user, what you did, and how many you archived. Then `uv run pa-core memory journal "Triage: ..."` with the counts.
 
 ## Outcomes
 

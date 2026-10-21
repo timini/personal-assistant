@@ -9,7 +9,7 @@ description: Build a visual report (HTML and PDF, saved to Drive and emailed) fr
 
 ## Steps
 
-1. Gather the facts first: read the sources in full and get real prices, dates and links.
+1. Gather the facts first: read the sources in full and get real prices, dates and links. When a source is an email, archive it after the report is delivered, as the `email-triage` skill describes.
 2. Write the input JSON to `activity/reports/<slug>/input.json` (ignored by git). Every activity, option and place needs a `url`.
 3. Preview locally: `uv run pa-core report --kind research --input activity/reports/<slug>/input.json --name <slug> --no-insights --dry-run`. Open the HTML path it prints and check it.
 4. Deliver: run the same command with `--deliver` instead of `--dry-run`. It renders a PDF, uploads it to Drive and emails it to the user, then prints the Drive link.

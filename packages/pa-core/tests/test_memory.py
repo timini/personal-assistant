@@ -160,6 +160,20 @@ class TestBrief:
         assert "Check-in: done today at 09:10" in memory.render_brief(today="2026-01-05", checked_in="09:10")
         assert "Check-in: not yet today" in memory.render_brief(today="2026-01-05", checked_in=None)
 
+    def test_brief_reports_email_triage_status(self, mem):
+        memory.add("fact", "a", "A")
+        done = memory.render_brief(today="2026-01-05", checked_in=None, triaged="08:12")
+        assert "Email triage: done today at 08:12" in done
+        todo = memory.render_brief(today="2026-01-05", checked_in=None, triaged=None)
+        assert "Email triage: not yet today" in todo and "email-triage skill" in todo
+
+    def test_triaged_today_uses_the_user_time_zone(self):
+        # 2026-01-05 23:30 UTC is still 5 January in London (GMT).
+        last = {"epoch": 1767655800, "display": "x"}
+        assert memory._triaged_today("2026-01-05", last=last) == "23:30"
+        assert memory._triaged_today("2026-01-06", last=last) is None
+        assert memory._triaged_today("2026-01-05", last=None) is None
+
 
 class TestLint:
     def test_lint_flags_stale_loops_and_near_duplicates(self, mem):
