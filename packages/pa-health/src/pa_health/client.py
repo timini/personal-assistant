@@ -193,6 +193,8 @@ def normalise_activity(raw: dict[str, Any]) -> dict[str, Any]:
     vigorous = num("vigorousIntensityMinutes") or 0
     hr_avg, hr_max = num("averageHR"), num("maxHR")
     calories, vo2 = num("calories"), num("vO2MaxValue")
+    load, aerobic, anaerobic = num("activityTrainingLoad"), num("aerobicTrainingEffect"), num("anaerobicTrainingEffect")
+    elevation = num("elevationGain")
 
     return {
         "id": raw.get("activityId"),
@@ -209,6 +211,12 @@ def normalise_activity(raw: dict[str, Any]) -> dict[str, Any]:
         # the WHO 150-minutes-a-week guideline is expressed in.
         "intensity_minutes": int(moderate + vigorous),
         "is_pr": bool(raw.get("isPR")),
+        # Garmin's own load and training-effect scores, for coaching across sessions.
+        "training_load": round(load, 1) if load is not None else None,
+        "aerobic_te": round(aerobic, 1) if aerobic is not None else None,
+        "anaerobic_te": round(anaerobic, 1) if anaerobic is not None else None,
+        "elevation_gain_m": round(elevation) if elevation is not None else None,
+        "avg_pace_min_km": round(duration / 60 / (distance / 1000), 2) if distance and duration else None,
     }
 
 

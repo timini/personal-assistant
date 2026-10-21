@@ -74,3 +74,51 @@ def test_alerts_json_and_empty(capsys):
          patch("pa_core.daily_log.get_events", return_value=[]):
         out = _run(["alerts", "--json"], capsys)
     assert json.loads(out) == []
+
+
+class TestWorkout:
+    def test_log_parses_exercises_and_prints_the_session(self, capsys):
+        with patch("pa_core.training._today", return_value="2026-10-21"), \
+             patch("pa_core.daily_log.log_event"), patch("pa_core.daily_log.get_events", return_value=[]):
+            out = _run(["workout", "log", "--type", "strength", "--exercise", "bench press=3x10@50",
+                        "--exercise", "curl=3x10@10/side", "--rpe", "7"], capsys)
+        assert "Logged 2026-10-21-1 strength (done)" in out
+        assert "bench press: 3 sets, 10x50.0kg" in out
+        assert "curl: 3 sets, 10x10.0kg per side" in out
+
+    def test_bad_exercise_is_a_clear_error(self, capsys):
+        with patch("pa_core.training._today", return_value="2026-10-21"):
+            try:
+                _run(["workout", "log", "--type", "strength", "--exercise", "bench"], capsys)
+            except SystemExit as exc:
+                assert exc.code == 1
+        assert "bench press=3x10@50" in capsys.readouterr().err
+
+    def test_plan_then_update_missed(self, capsys):
+        out = _run(["workout", "plan", "--date", "2026-10-20", "--time", "19:00", "--type", "run"], capsys)
+        assert "Planned 2026-10-20-1" in out
+        with patch("pa_core.training._today", return_value="2026-10-21"):
+            out = _run(["workout", "update", "2026-10-20-1", "--status", "missed"], capsys)
+        assert "2026-10-20-1 run (missed)" in out
+
+    def test_sync_reads_garmin_range(self, capsys):
+        acts = [{"id": 5, "name": "Run", "type": "running", "start": "2026-10-19 07:00:00",
+                 "distance_km": 5.0, "duration_min": 28.0}]
+        with patch("pa_health.cli.get_activities_range", return_value=acts) as m, \
+             patch("pa_health.cli._today", return_value="2026-10-21"):
+            out = _run(["workout", "sync", "--days", "7"], capsys)
+        m.assert_called_once_with("2026-10-15", "2026-10-21")
+        assert "Garmin sync 2026-10-15 to 2026-10-21: 1 added, 0 merged, 0 already logged" in out
+
+    def test_history_for_one_exercise(self, capsys):
+        from pa_core import training
+        with patch("pa_core.daily_log.log_event"), patch("pa_core.daily_log.get_events", return_value=[]):
+            training.log("strength", date="2026-10-21", today="2026-10-21",
+                         exercises=[training.parse_exercise("bench press=3x10@50")])
+        out = _run(["workout", "history", "--exercise", "bench"], capsys)
+        assert "2026-10-21  3 sets  top 50.0 kg  best 10x50.0kg  volume 1500 kg" in out
+
+    def test_week_json(self, capsys):
+        with patch("pa_health.cli._today", return_value="2026-10-21"):
+            out = _run(["workout", "week", "--json"], capsys)
+        assert json.loads(out)["sessions"] == 0

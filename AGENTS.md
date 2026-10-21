@@ -61,6 +61,7 @@ Rules:
 - **Journal what happened**, one line per meaningful action or decision. The journal is for recall; Notion task notes remain the record for each task.
 - Notion is still the source of truth for tasks. Memory holds context about the user; tasks hold work to do.
 - The daily event log (`pa-core log`, `activity/daily/`) is for structured metrics only: wellness check-ins, habits, HR context. Briefings read it.
+- Exercise sessions go in the training log (`pa-health workout`, `activity/training/`), not the daily log.
 
 ## Operating principles
 
@@ -107,6 +108,7 @@ Procedures that only matter at certain times are skills in `.claude/skills/` (sh
 | `task-hygiene` | Weekly task review (offer it on Sunday evenings) |
 | `research-doc` | Research saved to a Google Doc and linked from the task |
 | `visual-report` | A report, visual plan or options comparison as HTML and PDF, saved to Drive and emailed |
+| `personal-trainer` | Daily exercise slot and follow-up, logging workouts (sets, reps, weights), progress, weekly training review |
 
 ## Tasks (Notion)
 
@@ -119,7 +121,7 @@ Procedures that only matter at certain times are skills in `.claude/skills/` (sh
 
 ## Daily rhythm
 
-Triage email and check in once a day: the memory brief says whether each has happened. The first session of the day does both. Ask at a natural point, after any urgent request, never twice in a day. The `daily-checkin` skill has the morning and evening steps. When the user is tired or overwhelmed, help them start one priority rather than suggesting an easy day.
+Triage email and check in once a day: the memory brief says whether each has happened. The first session of the day does both. Ask at a natural point, after any urgent request, never twice in a day. The `daily-checkin` skill has the morning and evening steps. When the user is tired or overwhelmed, help them start one priority rather than suggesting an easy day. Exercise is coached through the `personal-trainer` skill: every agreed session is planned in the training log and closed (done or missed) at the next check-in.
 
 ## Tool notes and recovery
 
@@ -172,6 +174,12 @@ uv run pa-google backup [--keep 10]
 uv run pa-health day [--date DATE] [--json]
 uv run pa-health activities [--days 7 | --from DATE --to DATE] [--json]
 uv run pa-health alerts [--days 2] [--json]                # HR alerts not yet explained
+uv run pa-health workout plan --date D [--time 12:30] [--type strength]   # agreed session
+uv run pa-health workout log --type strength --exercise "bench press=3x10@50" [--rpe 7] [--feel ...]
+uv run pa-health workout update <id> [--status done|missed|skipped] [--exercise ...] [--rpe N]
+uv run pa-health workout sync [--days 7 | --from DATE]     # import Garmin activities, safe to re-run
+uv run pa-health workout history [--days 28] [--exercise bench] [--json]
+uv run pa-health workout week [--json]                     # sessions, minutes, km, open plans
 
 # Other
 uv run python scripts/task_snapshot.py        # task-flow snapshot
@@ -187,7 +195,7 @@ Recurring jobs (morning check-in, weekly review, follow-up monitors) are schedul
 | `pa-core` | Config, CLI runner, memory, daily log, context, briefings, reports |
 | `pa-google` | Gmail, Calendar, Drive, Docs via the `gws` CLI |
 | `pa-notion` | Notion tasks: the single source of truth for work |
-| `pa-health` | Garmin health and activity data |
+| `pa-health` | Garmin health and activity data, and the training log |
 
 Each has an `AGENTS.md`; read it before using or changing the package.
 

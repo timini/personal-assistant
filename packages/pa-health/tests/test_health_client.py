@@ -165,6 +165,19 @@ def test_activity_is_normalised_to_the_useful_fields():
     assert a["intensity_minutes"] == 60    # moderate + vigorous
 
 
+def test_activity_carries_training_metrics_and_pace():
+    got = normalise("2026-09-13", activities=[{
+        "activityId": 1, "activityType": {"typeKey": "running"}, "startTimeLocal": "2026-09-13 11:21:35",
+        "distance": 10000.0, "duration": 3300.0, "activityTrainingLoad": 120.46,
+        "aerobicTrainingEffect": 3.42, "anaerobicTrainingEffect": 1.05, "elevationGain": 54.3,
+    }])["activities"][0]
+    assert got["training_load"] == 120.5
+    assert got["aerobic_te"] == 3.4
+    assert got["anaerobic_te"] == 1.1
+    assert got["elevation_gain_m"] == 54
+    assert got["avg_pace_min_km"] == 5.5
+
+
 def test_activities_without_distance_still_normalise():
     """Strength and yoga sessions carry no distance. They are still sessions."""
     got = normalise("2026-09-13", activities=[{
@@ -176,6 +189,8 @@ def test_activities_without_distance_still_normalise():
     assert got[0]["distance_km"] is None
     assert got[0]["duration_min"] == 30.0
     assert got[0]["type"] == "strength_training"
+    assert got[0]["avg_pace_min_km"] is None
+    assert got[0]["training_load"] is None
 
 
 def test_malformed_activities_degrade_to_empty_list():

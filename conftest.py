@@ -25,6 +25,7 @@ def _mock_user_config():
 def _isolate_memory(tmp_path, monkeypatch):
     """Never let a test read or write the real assistant memory."""
     monkeypatch.setenv("PA_MEMORY_DIR", str(tmp_path / "memory"))
+    monkeypatch.setenv("PA_TRAINING_FILE", str(tmp_path / "training" / "sessions.jsonl"))
 
 
 @pytest.fixture(autouse=True)
@@ -32,3 +33,4 @@ def _isolate_triage_state(monkeypatch):
     """The memory brief reads the real triage cursor; tests start with none."""
     import pa_core.memory
     monkeypatch.setattr(pa_core.memory, "_last_triage", lambda: None, raising=False)
+    monkeypatch.setattr(pa_core.memory, "_training_summary", lambda today: None, raising=False)

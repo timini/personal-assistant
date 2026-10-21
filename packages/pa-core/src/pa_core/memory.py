@@ -329,6 +329,15 @@ def _triaged_today(today: str, last=_UNSET) -> str | None:
     return when.strftime("%H:%M") if when.date().isoformat() == today else None
 
 
+def _training_summary(today: str) -> str | None:
+    """The training log's one-line summary; None if the log cannot be read."""
+    try:
+        from pa_core.training import brief_line
+        return brief_line(today)
+    except Exception:
+        return None
+
+
 def render_brief(today: str | None = None, checked_in=_UNSET, triaged=_UNSET) -> str:
     """Compact session-start context. Empty string when the store is empty."""
     today = today or _today()
@@ -344,6 +353,9 @@ def render_brief(today: str | None = None, checked_in=_UNSET, triaged=_UNSET) ->
         triaged = _triaged_today(today)
     lines.append(f"Email triage: done today at {triaged}" if triaged else
                  "Email triage: not yet today. Load the email-triage skill before planning the day.")
+    exercise = _training_summary(today)
+    if exercise:
+        lines.append(exercise)
     lines.append("")
 
     due = due_loops(today)

@@ -167,6 +167,13 @@ class TestBrief:
         todo = memory.render_brief(today="2026-01-05", checked_in=None, triaged=None)
         assert "Email triage: not yet today" in todo and "email-triage skill" in todo
 
+    def test_brief_reports_exercise_from_the_training_log(self, mem, monkeypatch):
+        memory.add("fact", "a", "A")
+        monkeypatch.setattr(memory, "_training_summary", lambda today: f"Exercise: summary for {today}")
+        assert "Exercise: summary for 2026-01-05" in memory.render_brief(today="2026-01-05", checked_in=None)
+        monkeypatch.setattr(memory, "_training_summary", lambda today: None)
+        assert "Exercise:" not in memory.render_brief(today="2026-01-05", checked_in=None)
+
     def test_triaged_today_uses_the_user_time_zone(self):
         # 2026-01-05 23:30 UTC is still 5 January in London (GMT).
         last = {"epoch": 1767655800, "display": "x"}

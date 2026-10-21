@@ -10,7 +10,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 SKILLS = ROOT / ".claude" / "skills"
-EXPECTED = {"email-triage", "daily-checkin", "task-hygiene", "research-doc", "visual-report"}
+EXPECTED = {"email-triage", "daily-checkin", "task-hygiene", "research-doc", "visual-report",
+            "personal-trainer"}
 CLIS = {"pa-core": "pa_core.cli", "pa-google": "pa_google.cli", "pa-notion": "pa_notion.cli",
         "pa-health": "pa_health.cli"}
 
@@ -74,7 +75,7 @@ def test_no_instructions_md_stubs_remain():
 
 @pytest.mark.parametrize("path", ["private/memory/entries/x.md", "private/drafts/x.txt",
                                   "activity/reports/x/x.html", "activity/daily/x.jsonl",
-                                  "activity/.state.json"])
+                                  "activity/.state.json", "activity/training/sessions.jsonl"])
 def test_cli_managed_paths_are_ignored(path):
     """AGENTS.md lets agents skip git check-ignore for these; keep that true."""
     result = subprocess.run(["git", "check-ignore", "-q", path], cwd=ROOT)
@@ -90,3 +91,9 @@ def test_morning_checkin_triages_email():
     text = (SKILLS / "daily-checkin" / "SKILL.md").read_text()
     morning = text.split("## Morning", 1)[1].split("## Evening", 1)[0]
     assert "email-triage" in morning
+
+
+def test_morning_checkin_hands_exercise_to_the_trainer():
+    text = (SKILLS / "daily-checkin" / "SKILL.md").read_text()
+    morning = text.split("## Morning", 1)[1].split("## Evening", 1)[0]
+    assert "personal-trainer" in morning
