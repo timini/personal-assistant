@@ -69,9 +69,10 @@ def test_update_sets_lane_and_clears_due(MockClient):
     assert props["Due Date"] == {"date": None}
 
 
+@patch("pa_notion.tasks._get_db_id", return_value="test-database")
 @patch("pa_notion.tasks.list_tasks", return_value=[])
 @patch("pa_notion.tasks.NotionClient")
-def test_add_task_sets_due_and_lane(MockClient, _list):
+def test_add_task_sets_due_and_lane(MockClient, _list, _db_id):
     client = MockClient.return_value
     client.create_page.return_value = _page(due="2026-11-01")
     client.get_page.return_value = _page(due="2026-11-01")
@@ -79,6 +80,7 @@ def test_add_task_sets_due_and_lane(MockClient, _list):
     add_task("Fix gate", due_date="2026-11-01", lane="🔥 Live")
 
     props = client.create_page.call_args[0][1]
+    assert client.create_page.call_args[0][0] == "test-database"
     assert props["Due Date"] == {"date": {"start": "2026-11-01"}}
     assert props["Lane"] == {"select": {"name": "🔥 Live"}}
 

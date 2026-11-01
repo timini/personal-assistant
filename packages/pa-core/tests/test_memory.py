@@ -66,6 +66,45 @@ class TestGetAndList:
 
 
 class TestArchiveAndLoops:
+    @pytest.mark.parametrize("kind", ["fact", "loop"])
+    @pytest.mark.parametrize("dates", [
+        ["2026-01-05"] * 3,
+        ["2026-01-05", "2026-01-06", "2026-01-07"],
+    ])
+    def test_repeated_archive_preserves_every_record(self, mem, kind, dates):
+        snapshots = {}
+        for index, date in enumerate(dates):
+            memory.add(kind, "Repeat name", f"Version {index}",
+                       body=f"Details {index}", due=date, today=date)
+            if kind == "loop":
+                archived = memory.close_loop("Repeat name", f"Outcome {index}", today=date)
+            else:
+                archived = memory.archive("Repeat name", f"Outcome {index}", today=date)
+
+            assert memory.get("Repeat name") is None
+            assert archived["status"] == ("done" if kind == "loop" else "archived")
+            for path, text in snapshots.items():
+                assert path.read_text() == text
+            paths = set((mem / "archive").glob("*.md"))
+            assert len(paths) == index + 1
+            new_path, = paths - snapshots.keys()
+            record = memory._read(new_path)
+            assert record["name"] == "repeat-name"
+            assert record["summary"] == f"Version {index}"
+            assert record["body"] == f"Details {index}\n\n{archived['status'].capitalize()} {date}: Outcome {index}"
+            snapshots[new_path] = new_path.read_text()
+
+    def test_archive_skips_suffix_owned_by_another_entry(self, mem):
+        for name in ["note", "note-2"]:
+            memory.add("fact", name, name)
+            memory.archive(name, "Original record")
+        originals = {p: p.read_text() for p in (mem / "archive").glob("*.md")}
+        memory.add("fact", "note", "New record")
+        memory.archive("note", "New reason")
+        assert len(list((mem / "archive").glob("*.md"))) == 3
+        for path, text in originals.items():
+            assert path.read_text() == text
+
     def test_archive_moves_entry_out_of_active_set(self, mem):
         memory.add("preference", "sign as assistant", "Sign family messages as the assistant")
         memory.archive("sign-as-assistant", "User asked to stop", today="2026-01-02")
