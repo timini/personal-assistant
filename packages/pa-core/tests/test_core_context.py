@@ -378,6 +378,8 @@ class TestGetTodayContextErrors:
             patch("pa_core.context._fetch_emails", return_value=[]),
             patch("pa_core.context._fetch_tasks", return_value=([], [])),
             patch("pa_core.context._fetch_weather", return_value=FAKE_WEATHER),
+            patch("pa_notion.stats.get_task_stats", return_value={}),
+            patch("pa_notion.stats.render_stats", return_value="Task stats summary"),
         ]
 
     def test_calendar_error(self):
@@ -489,6 +491,8 @@ class TestGetTodayContextErrors:
             from pa_core.context import get_today_context
             ctx = get_today_context()
             assert ctx["errors"] == []
+            assert ctx["task_stats"] == {}
+            assert ctx["task_stats_text"] == "Task stats summary"
         finally:
             for p in patches:
                 p.stop()

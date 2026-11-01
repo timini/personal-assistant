@@ -36,7 +36,7 @@ Run `uv run pa-core memory brief` (or `uv run pa-core checkin` for a daily sessi
 Plain-file store at `private/memory/` (`$PA_MEMORY_DIR` or `memory_dir` in `user.yaml` override it):
 
 - `entries/<name>.md`: one entry per file, YAML frontmatter (`name`, `type`, `summary`, `tags`, `due`, `source`, `status`, `created`, `updated`) and a Markdown body.
-- `archive/<name>.md`: superseded entries and closed loops. Nothing is deleted.
+- `archive/<name>.md`: superseded entries and closed loops. Repeated names use `-2`, `-3`, ... suffixes, skipping existing files so earlier records are preserved.
 - `journal/YYYY-MM.md`: dated one-line notes.
 
 Types: `preference`, `lesson`, `person`, `fact`, `project`, `loop` (loops need a `due` date). Key functions: `add()` (upsert), `update()` (change some fields or append a dated note; `pa-core memory update`), `get()`, `list_entries()`, `search()`, `archive()`, `due_loops()`, `close_loop()`, `journal()`, `render_brief()` (also says whether today's check-in and email triage have happened, and gives the training log's Exercise line), `lint()`, `import_claude_memory()`. Tests isolate the store through `$PA_MEMORY_DIR` in the root `conftest.py`.
