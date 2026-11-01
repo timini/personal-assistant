@@ -78,6 +78,31 @@ class TestArchiveAndLoops:
         with pytest.raises(KeyError):
             memory.archive("nope", "x")
 
+    def test_archive_collision_preserves_earlier_entry(self, mem):
+        memory.add("preference", "sign as assistant", "Initial text")
+        memory.archive("sign-as-assistant", "First archive", today="2026-01-02")
+        first_file = mem / "archive" / "sign-as-assistant.md"
+        assert first_file.exists()
+        assert "First archive" in first_file.read_text()
+
+        # Re-add entry with the same name and archive again
+        memory.add("preference", "sign as assistant", "Second text")
+        memory.archive("sign-as-assistant", "Second archive", today="2026-01-03")
+
+        # First file remains intact
+        assert "First archive" in first_file.read_text()
+        # Second file is saved with dated suffix
+        second_file = mem / "archive" / "sign-as-assistant-2026-01-03.md"
+        assert second_file.exists()
+        assert "Second archive" in second_file.read_text()
+
+        # Archive once more on the same day -> counter suffix
+        memory.add("preference", "sign as assistant", "Third text")
+        memory.archive("sign-as-assistant", "Third archive", today="2026-01-03")
+        third_file = mem / "archive" / "sign-as-assistant-2026-01-03-2.md"
+        assert third_file.exists()
+        assert "Third archive" in third_file.read_text()
+
     def test_due_and_upcoming_loops(self, mem):
         memory.add("loop", "past", "Chase A", due="2026-01-01")
         memory.add("loop", "today", "Chase B", due="2026-01-05")

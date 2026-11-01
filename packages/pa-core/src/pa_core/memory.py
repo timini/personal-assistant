@@ -186,6 +186,20 @@ def list_entries(type: str | None = None) -> list[dict]:
     return [e for e in entries if type is None or e.get("type") == type]
 
 
+def _archive_path(slug: str, today: str) -> Path:
+    folder = memory_dir() / "archive"
+    base = folder / f"{slug}.md"
+    if not base.exists():
+        return base
+    dated = folder / f"{slug}-{today}.md"
+    if not dated.exists():
+        return dated
+    counter = 2
+    while (folder / f"{slug}-{today}-{counter}.md").exists():
+        counter += 1
+    return folder / f"{slug}-{today}-{counter}.md"
+
+
 def archive(name: str, reason: str, today: str | None = None, status: str = "archived") -> dict:
     """Move an entry out of the active set, recording why. Nothing is deleted."""
     slug = slugify(name)
@@ -197,7 +211,7 @@ def archive(name: str, reason: str, today: str | None = None, status: str = "arc
     entry["updated"] = today
     note = f"{status.capitalize()} {today}: {reason}"
     entry["body"] = f"{entry['body']}\n\n{note}".strip()
-    _write(memory_dir() / "archive" / f"{slug}.md", entry)
+    _write(_archive_path(slug, today), entry)
     _entry_path(slug).unlink()
     return entry
 
