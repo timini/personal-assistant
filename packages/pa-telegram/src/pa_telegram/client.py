@@ -13,6 +13,10 @@ TELEGRAM_API = "https://api.telegram.org"
 MAX_MESSAGE_LENGTH = 4096
 _OFFSET_FILE = PA_ROOT / "activity" / ".telegram_offset"
 _MEDIA_DIR = PA_ROOT / "activity" / "telegram_media"
+# Durable, append-only record of every message ever fetched. Written before the
+# offset can advance, so message content is never lost once seen — even after a
+# checkin/--ack acknowledges (and Telegram purges) the update server-side.
+_ARCHIVE_FILE = PA_ROOT / "activity" / "telegram_inbox.jsonl"
 
 
 def _get_bot_token() -> str:
@@ -153,6 +157,40 @@ def _write_offset(offset: int) -> None:
     _OFFSET_FILE.write_text(str(offset))
 
 
+def _archive_messages(messages: list[dict]) -> None:
+    """Append fetched messages to the durable inbox archive, deduped by update_id.
+
+    This is the safety net against losing messages: once a message is written
+    here it survives acknowledgement and Telegram's server-side purge, so it can
+    always be re-listed via read_archive().
+    """
+    if not messages:
+        return
+    seen = {m["update_id"] for m in read_archive()}
+    new = [m for m in messages if m["update_id"] not in seen]
+    if not new:
+        return
+    _ARCHIVE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with _ARCHIVE_FILE.open("a", encoding="utf-8") as fh:
+        for m in new:
+            fh.write(json.dumps(m, ensure_ascii=False) + "\n")
+
+
+def read_archive(limit: int | None = None) -> list[dict]:
+    """Return archived messages oldest-first (or the last `limit` if given)."""
+    if not _ARCHIVE_FILE.exists():
+        return []
+    entries: list[dict] = []
+    for line in _ARCHIVE_FILE.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line:
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return entries[-limit:] if limit else entries
+
+
 def get_messages(limit: int = 100) -> list[dict]:
     """Fetch new messages sent to the bot by the configured chat_id.
 
@@ -221,6 +259,8 @@ def get_messages(limit: int = 100) -> list[dict]:
             entry["image_path"] = image_path
         messages.append(entry)
 
+    # Persist to the durable archive BEFORE any caller can acknowledge them.
+    _archive_messages(messages)
     return messages
 
 

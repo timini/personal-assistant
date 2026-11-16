@@ -1,6 +1,6 @@
 # PA — Personal Assistant CLI Toolkit
 
-A modular personal assistant built as a Python uv workspace. Each integration is a standalone CLI tool that Claude (or any AI assistant) can invoke via `uv run <command>`. No MCP servers — just Python packages.
+A modular personal assistant built as a Python uv workspace. Each integration is a standalone CLI tool that Claude Code, Codex, or another coding agent can invoke via `uv run <command>`. No MCP servers — just Python packages.
 
 ## Features
 
@@ -118,7 +118,9 @@ projects:
 
 ## How It Works with AI Assistants
 
-This toolkit is designed to be used by Claude Code (or similar AI coding assistants). The assistant calls CLI commands via bash, reads the output, and uses the activity logs to maintain context across sessions. The `CLAUDE.md` file documents all available commands and workflows.
+This toolkit supports both Claude Code and Codex. The assistant calls CLI commands via the shell, reads their output, and uses the activity logs to maintain context across sessions. `AGENTS.md` is the canonical handbook; `CLAUDE.md` imports it for backward compatibility. Package-specific guidance follows the same `AGENTS.md` plus `CLAUDE.md` wrapper pattern.
+
+Codex uses the trusted project configuration in `.codex/config.toml`. The repository intentionally grants Codex unrestricted local execution without approval prompts because the personal-assistant workflows need network access, Google Workspace credentials, and macOS automation.
 
 ## License
 

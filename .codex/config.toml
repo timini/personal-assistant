@@ -1,0 +1,3 @@
+sandbox_mode = "danger-full-access"
+approval_policy = "never"
+project_doc_max_bytes = 65536

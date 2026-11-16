@@ -107,6 +107,21 @@ def cmd_checkin(args):
     except Exception as exc:
         print(f"  Task sync failed: {exc}", file=sys.stderr)
 
+    # 1b. Sync work Outlook calendar → Google "Work" calendar (so work events show in context).
+    # Degrades gracefully: needs Chrome-free local Legacy Outlook open; never breaks the checkin.
+    print("Syncing work Outlook calendar...", file=sys.stderr)
+    try:
+        from pa_google.outlook_sync import sync_outlook_to_google
+        from pa_core.daily_log import log_event
+        res = sync_outlook_to_google(days=14)
+        print(f"  Outlook → Day Job: +{res['added']} / ~{res['updated']} / -{res['removed']} "
+              f"({res['total']} events)", file=sys.stderr)
+        if res["added"] or res["updated"] or res["removed"]:
+            log_event("calendar", "synced",
+                      f"Outlook → Google Day Job: +{res['added']} updated {res['updated']} removed {res['removed']}")
+    except Exception as exc:
+        print(f"  Outlook sync skipped: {exc}", file=sys.stderr)
+
     # 2. Fetch full context
     print("Fetching today's context...", file=sys.stderr)
     from pa_core.context import get_today_context, render_context

@@ -128,6 +128,23 @@ def cmd_backup(args):
         print(f"Cleaned up {len(result['deleted'])} old backup(s)")
 
 
+def cmd_calendar_sync_outlook(args):
+    """Mirror the work Outlook calendar into the Google 'Work' calendar (needs Legacy Outlook open)."""
+    from pa_google.outlook import OutlookError
+    from pa_google.outlook_sync import WorkCalendarNotConfigured, sync_outlook_to_google
+    try:
+        res = sync_outlook_to_google(days=args.days)
+    except OutlookError as e:
+        print(f"Outlook not readable: {e}", file=sys.stderr)
+        print("Tip: open Microsoft Outlook in Legacy mode (turn off the 'New Outlook' toggle).", file=sys.stderr)
+        sys.exit(1)
+    except WorkCalendarNotConfigured as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"Outlook -> Google 'Day Job': +{res['added']} added, {res['updated']} updated, "
+          f"{res['removed']} removed ({res['total']} work events in next {args.days} days)")
+
+
 def main():
     parser = argparse.ArgumentParser(prog="pa-google", description="PA Google Workspace integration")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -152,6 +169,10 @@ def main():
     backup_p = sub.add_parser("backup", help="Backup personal files to Google Drive")
     backup_p.add_argument("--keep", type=int, default=7, help="Number of backups to keep")
 
+    sync_p = sub.add_parser("calendar-sync-outlook",
+                            help="Mirror work Outlook calendar into the Google 'Work' calendar")
+    sync_p.add_argument("--days", type=int, default=14, help="Days ahead to sync (default 14)")
+
     args = parser.parse_args()
 
     if args.command == "briefing":
@@ -164,6 +185,8 @@ def main():
         cmd_calendar_check(args)
     elif args.command == "backup":
         cmd_backup(args)
+    elif args.command == "calendar-sync-outlook":
+        cmd_calendar_sync_outlook(args)
 
 
 if __name__ == "__main__":

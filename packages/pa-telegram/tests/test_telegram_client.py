@@ -8,6 +8,15 @@ import httpx
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _isolate_archive(tmp_path):
+    """Redirect the durable inbox archive to a temp file for every test, so
+    get_messages() never writes fixture data into the real repo archive."""
+    from pa_telegram import client
+    with patch.object(client, "_ARCHIVE_FILE", tmp_path / "_inbox.jsonl"):
+        yield
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -496,3 +505,50 @@ class TestGetChatId:
             result = _get_chat_id()
             assert result == "12345"
             assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# Durable inbox archive — messages must survive acknowledgement forever
+# ---------------------------------------------------------------------------
+
+class TestInboxArchive:
+    @patch("pa_telegram.client._get_chat_id", return_value="111")
+    @patch("pa_telegram.client._get_bot_token", return_value="tok123")
+    @patch("pa_telegram.client._read_offset", return_value=None)
+    def test_get_messages_persists_to_archive(self, _off, _tok, _cid, tmp_path):
+        from pa_telegram import client
+        mock_resp = type("R", (), {"json": lambda self: _ok_response([
+            _make_update(1, 111, "buy milk"),
+            _make_update(2, 111, "call plumber"),
+        ])})()
+        with patch.object(client, "_ARCHIVE_FILE", tmp_path / "inbox.jsonl"), \
+             patch("httpx.get", return_value=mock_resp):
+            client.get_messages()
+            archived = client.read_archive()
+        texts = [m["text"] for m in archived]
+        assert "buy milk" in texts and "call plumber" in texts
+
+    def test_archive_dedups_by_update_id(self, tmp_path):
+        from pa_telegram import client
+        f = tmp_path / "inbox.jsonl"
+        with patch.object(client, "_ARCHIVE_FILE", f):
+            entry = {"update_id": 7, "date": "2026-07-15", "time": "09:00",
+                     "text": "hello", "from_name": "Tim"}
+            client._archive_messages([entry])
+            client._archive_messages([entry])  # same message fetched twice
+            archived = client.read_archive()
+        assert len(archived) == 1
+        assert archived[0]["text"] == "hello"
+
+    def test_read_archive_survives_acknowledge(self, tmp_path):
+        from pa_telegram import client
+        f = tmp_path / "inbox.jsonl"
+        with patch.object(client, "_ARCHIVE_FILE", f), \
+             patch.object(client, "_OFFSET_FILE", tmp_path / ".offset"):
+            msgs = [{"update_id": 3, "date": "2026-07-15", "time": "08:00",
+                     "text": "action me", "from_name": "Tim"}]
+            client._archive_messages(msgs)
+            client.acknowledge_messages(msgs)  # offset advances past them
+            # even after ack, the content is still retrievable
+            archived = client.read_archive()
+        assert [m["text"] for m in archived] == ["action me"]

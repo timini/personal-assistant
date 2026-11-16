@@ -5,6 +5,7 @@ requires-python = ">=3.11"
 [manifest]
 members = [
     "pa",
+    "pa-browser",
     "pa-core",
     "pa-ebay",
     "pa-finance",
@@ -451,6 +452,21 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=0.24" },
     { name = "pytest-cov", specifier = ">=5.0" },
     { name = "pytest-mock", specifier = ">=3.14" },
+]
+
+[[package]]
+name = "pa-browser"
+version = "0.1.0"
+source = { editable = "packages/pa-browser" }
+dependencies = [
+    { name = "pa-core" },
+    { name = "playwright" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pa-core", editable = "packages/pa-core" },
+    { name = "playwright", specifier = ">=1.44" },
 ]
 
 [[package]]

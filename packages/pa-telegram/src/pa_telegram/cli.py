@@ -20,9 +20,24 @@ def cmd_messages(args):
     """Show new messages sent to the bot."""
     import json as json_mod
 
-    from pa_telegram.client import acknowledge_messages, get_messages
+    from pa_telegram.client import acknowledge_messages, get_messages, read_archive
 
     try:
+        if getattr(args, "history", None) is not None:
+            # Re-list from the durable archive — survives acknowledgement.
+            archived = read_archive(limit=args.history if args.history > 0 else None)
+            if args.json:
+                print(json_mod.dumps(archived, indent=2))
+            elif archived:
+                for m in archived:
+                    line = f"[{m['date']} {m['time']}] {m['from_name']}: {m['text']}"
+                    if m.get("image_path"):
+                        line += f"\n  📷 {m['image_path']}"
+                    print(line)
+            else:
+                print("No archived messages.")
+            return
+
         messages = get_messages()
         if args.json:
             print(json_mod.dumps(messages, indent=2))
@@ -74,6 +89,15 @@ def main():
     mp = sub.add_parser("messages", help="Show new messages sent to the bot")
     mp.add_argument("--json", action="store_true", help="JSON output")
     mp.add_argument("--ack", action="store_true", help="Acknowledge messages after reading")
+    mp.add_argument(
+        "--history",
+        nargs="?",
+        type=int,
+        const=0,
+        default=None,
+        help="List from the durable inbox archive instead of fetching new "
+        "(optionally the last N). Survives acknowledgement.",
+    )
 
     # briefing
     bp = sub.add_parser("briefing", help="Send daily briefing to Telegram")

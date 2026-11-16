@@ -1,7 +1,3 @@
-# pa-finance — Package Instructions
+# Compatibility Instructions
 
-## Goal
-**Financial awareness and bill tracking.** Surface upcoming payments, flag overdue bills, spending summaries.
-
-## Status
-Stub — not yet implemented. Needs Lunchflow setup.
+The canonical package instructions are in [AGENTS.md](AGENTS.md).
