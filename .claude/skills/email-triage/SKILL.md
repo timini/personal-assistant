@@ -34,6 +34,8 @@ Never create a task for:
 - deliveries, dispatch notices and order confirmations;
 - security sign-in alerts, unless they show a new device or location the user did not recognise (then one task, not one per alert);
 - usage or quota alerts, SEO and analytics reports, and newsletters (read them, extract dates, then archive);
+- automated monitoring: CI or pipeline failures, error trackers (Sentry, Datadog), uptime and 5xx alerts, scanner and budget alerts, queue or DLQ alarms;
+- vendor notices about pricing, API, plan or settings changes, unless the user asked to track that service;
 - "read this document" requests, unless they have a deadline;
 - verifying something you can check yourself (calendar, receipts, account pages).
 

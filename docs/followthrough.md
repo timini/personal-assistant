@@ -38,7 +38,7 @@ orders, HR decisions, or new commitments.
 Before archiving actionable mail: cross-reference existing tasks, update the
 outcome, next action, next owner and next review. Save the source/evidence link.
 A title plus copied email is not sufficient. Calendar checks still apply.
-Informational newsletters do not need invented obligations.
+Informational newsletters, automated monitoring alerts and vendor change notices do not need invented obligations.
 
 Use `pa_notion.tasks.update_task` with `outcome`, `next_action`, `owner`,
 `next_review`, `blocker`, `deadline_basis`, `external_deadline`, `last_progress`.
