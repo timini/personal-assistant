@@ -38,3 +38,4 @@ node_modules/
 .claude/RESUME.md
 .env.*
 !.env.example
+.codex-attachments/
