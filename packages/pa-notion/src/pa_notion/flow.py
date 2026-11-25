@@ -25,13 +25,13 @@ def _shift(today: str, days: int) -> str:
 def compute_snapshot(tasks: list[dict], today: str) -> dict:
     """Point-in-time counts from the current task set."""
     t = _d(today)
-    open_tasks = [x for x in tasks if x.get("status") != "Done"]
+    open_tasks = [x for x in tasks if x.get("status") not in ("Done", "Discarded")]
     done_total = sum(1 for x in tasks if x.get("status") == "Done")
 
     aging_live = []
     for x in open_tasks:
         if (x.get("lane") or "").startswith(LIVE) and x.get("status") in ("To Do", "In Progress"):
-            le = (x.get("last_edited") or "")[:10]
+            le = (x.get("last_progress") or x.get("created") or "")[:10]
             stale = bool(le) and (t - _d(le)).days > AGING_DAYS
             overdue = bool(x.get("due")) and x["due"] < today
             if stale or overdue:
@@ -54,7 +54,7 @@ def net_flow(snapshots: list[dict], tasks: list[dict], today: str, days: int = 7
     """Added vs completed over the rolling window. Prefers snapshot deltas for
     completions; falls back to Done last_edited_time before history exists."""
     win_start = _shift(today, days)
-    current_open = sum(1 for x in tasks if x.get("status") != "Done")
+    current_open = sum(1 for x in tasks if x.get("status") not in ("Done", "Discarded"))
     current_done = sum(1 for x in tasks if x.get("status") == "Done")
 
     added = sum(1 for x in tasks if x.get("created") and x["created"][:10] > win_start)
@@ -69,9 +69,9 @@ def net_flow(snapshots: list[dict], tasks: list[dict], today: str, days: int = 7
     else:
         completed = sum(
             1 for x in tasks
-            if x.get("status") == "Done" and x.get("last_edited") and x["last_edited"][:10] > win_start
+            if x.get("status") == "Done" and x.get("closed_at") and x["closed_at"][:10] > win_start
         )
-        source = "last_edited"
+        source = "closed_at"
 
     open_then = base["open"] if base and "open" in base else None
     open_trend = (current_open - open_then) if open_then is not None else None

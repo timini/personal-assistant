@@ -75,3 +75,8 @@ Use the `research-doc` skill: research is saved as a Google Doc under `PA/<Proje
 - Check `user-instructions.md` and memory for which calendar to use and who to invite.
 
 School newsletters are covered in the `email-triage` skill.
+
+
+## Completion-driven follow-through
+
+Read [../../docs/followthrough.md](../../docs/followthrough.md). Drive one prepared next action, track ownership/review dates and distinguish capture from completion. This supersedes capture-only triage rules. Memory loops retain user context; Notion owns task state.
