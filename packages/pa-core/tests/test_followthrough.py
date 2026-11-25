@@ -139,3 +139,11 @@ def test_reconciliation_queue_is_bounded():
     r=select_actions(rows,'2026-11-25T08:30:00')
     assert len(r['review_queue'])==5
     assert r['review_count']==20
+
+
+def test_context_does_not_restore_removed_message_integrations():
+    from pathlib import Path
+    template = Path(__file__).parents[1] / 'src/pa_core/templates/context.md.j2'
+    text = template.read_text()
+    assert '## Telegram Messages' not in text
+    assert '## WhatsApp Messages' not in text
