@@ -38,7 +38,7 @@ def get_task_stats(today: str | None = None) -> dict:
 
         if status == "Done":
             done_count += 1
-            edited = t.get("last_edited_time", "")
+            edited = t.get("closed_at", "")
             if edited:
                 edit_date = edited[:10]  # "2026-03-20T..." → "2026-03-20"
                 if edit_date >= cutoff_7d[:10]:
@@ -46,7 +46,7 @@ def get_task_stats(today: str | None = None) -> dict:
                     completed_by_project_7d[project] += 1
                 if edit_date >= cutoff_30d[:10]:
                     completed_by_project_30d[project] += 1
-        else:
+        elif status != "Discarded":
             active_count += 1
             active_by_project[project] += 1
 

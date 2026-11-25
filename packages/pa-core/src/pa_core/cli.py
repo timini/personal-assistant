@@ -220,6 +220,19 @@ def cmd_report(args):
             raise SystemExit(1)
 
 
+def cmd_followthrough(args):
+    import json
+    from pa_core.followthrough import get_followthrough, render_followthrough, record_checkin
+    if args.record_task:
+        if not args.slot:
+            raise SystemExit("--record-task requires --slot (only after delivering the prompt)")
+        result = record_checkin(args.record_task, args.slot, progress=args.progress or "", select=args.select, snooze_until=args.snooze_until)
+        print(json.dumps(result, indent=2))
+        return
+    result = get_followthrough(energy=args.energy)
+    print(json.dumps(result, indent=2) if args.json else render_followthrough(result))
+
+
 def main():
     parser = argparse.ArgumentParser(prog="pa-core", description="PA shared utilities")
     sub = parser.add_subparsers(dest="command")
@@ -239,6 +252,15 @@ def main():
     ci.add_argument("--evening", action="store_true", help="Run as evening session")
     ci.add_argument("--no-backup", action="store_true", help="Skip Google Drive backup")
     ci.add_argument("--json", action="store_true", help="Output context as JSON only")
+
+    fp = sub.add_parser("followthrough", help="Read next actions; explicit flags record delivered prompts")
+    fp.add_argument("--json", action="store_true")
+    fp.add_argument("--energy", choices=["normal", "low", "unwell", "protect"], default="normal")
+    fp.add_argument("--record-task")
+    fp.add_argument("--slot")
+    fp.add_argument("--progress")
+    fp.add_argument("--select", action="store_true")
+    fp.add_argument("--snooze-until")
 
     # context
     cp = sub.add_parser("context", help="Today's full context (calendar + emails + tasks + habits + weather)")
@@ -312,6 +334,8 @@ def main():
         cmd_briefing(args)
     elif args.command == "checkin":
         cmd_checkin(args)
+    elif args.command == "followthrough":
+        cmd_followthrough(args)
     elif args.command == "context":
         cmd_context(args)
     elif args.command == "log":

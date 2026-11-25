@@ -15,25 +15,27 @@ _No events today._
 - **{{ em.from }}**: {{ em.subject }}
 {% endfor %}
 {% else %}
-_Inbox zero!_
+_No unread messages returned; this does not establish inbox zero._
 {% endif %}
 
-## Urgent Tasks
+## Parked / Snoozed Deadline Conflicts
 {% if tasks_urgent %}
 {% for t in tasks_urgent %}
 - {{ t.title }}{{ " — due " ~ t.due_date if t.due_date else "" }}{{ " [" ~ t.project ~ "]" if t.project else "" }}
 {% endfor %}
 {% else %}
-_No urgent tasks._
+_No deadline conflicts._
 {% endif %}
 
-## Due This Week
+## Prepared Next Actions
 {% if tasks_due_soon %}
 {% for t in tasks_due_soon %}
-- {{ "[" ~ t.priority ~ "] " if t.priority else "" }}{{ t.title }} — due {{ t.due_date }}{{ " [" ~ t.project ~ "]" if t.project else "" }}
+- {{ t.title }}: {{ t.next_action }} — {{ t.owner }} ({{ t.reason }})
+{% if t.change_approach %}  Stalled twice: change approach, reduce the step or ask one blocker question.
+{% endif %}
 {% endfor %}
 {% else %}
-_Nothing due this week._
+_No ready action selected. Check followthrough review_queue before assuming no work remains._
 {% endif %}
 
 ## Completed Today

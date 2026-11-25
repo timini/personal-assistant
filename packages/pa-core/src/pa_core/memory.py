@@ -3,7 +3,7 @@
 Layout (default `private/memory/`, gitignored):
 
     entries/<name>.md     one durable fact per file, YAML frontmatter + body
-    archive/<name>.md     superseded entries and closed loops, kept for history
+    archive/<name>.md     history; repeated names get -2, -3, ... suffixes
     journal/YYYY-MM.md    dated one-line notes of what happened
 
 Entry types:
@@ -187,7 +187,7 @@ def list_entries(type: str | None = None) -> list[dict]:
 
 
 def archive(name: str, reason: str, today: str | None = None, status: str = "archived") -> dict:
-    """Move an entry out of the active set, recording why. Nothing is deleted."""
+    """Move an entry out of the active set, keeping earlier archives with numbered suffixes."""
     slug = slugify(name)
     entry = get(slug)
     if entry is None:
@@ -197,7 +197,13 @@ def archive(name: str, reason: str, today: str | None = None, status: str = "arc
     entry["updated"] = today
     note = f"{status.capitalize()} {today}: {reason}"
     entry["body"] = f"{entry['body']}\n\n{note}".strip()
-    _write(memory_dir() / "archive" / f"{slug}.md", entry)
+    folder = memory_dir() / "archive"
+    path = folder / f"{slug}.md"
+    suffix = 2
+    while path.exists():
+        path = folder / f"{slug}-{suffix}.md"
+        suffix += 1
+    _write(path, entry)
     _entry_path(slug).unlink()
     return entry
 

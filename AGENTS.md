@@ -210,3 +210,8 @@ Each has an `AGENTS.md`; read it before using or changing the package.
 Red-green TDD for every code change: write a failing test, make it pass, then tidy. Run `uv run pytest` (or `uv run pytest packages/pa-<name>/`). If you cannot write a failing test first, clarify the requirement before coding.
 
 Adding a package: create `packages/pa-<name>/` with `pyproject.toml` (depend on `pa-core` as a workspace source), `src/pa_<name>/{client,cli}.py`, tests and an `AGENTS.md`; register the CLI in `[project.scripts]`; run `uv sync --all-packages`.
+
+
+## Completion-driven follow-through
+
+Read [docs/followthrough.md](docs/followthrough.md). Drive one prepared next action, track ownership/review dates and distinguish capture from completion. This supersedes capture-only triage rules. Memory loops retain user context; Notion owns task state.

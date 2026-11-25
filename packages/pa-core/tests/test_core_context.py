@@ -86,15 +86,15 @@ class TestTaskStreak:
         assert _task_streak("2026-03-19") == 2
 
     @patch("pa_core.context.get_events")
-    def test_task_streak_counts_created(self, mock_events):
-        """'created' actions also count toward streak."""
+    def test_task_streak_excludes_created(self, mock_events):
+        """Capture is not completion."""
         def events_for_date(date_str):
             if date_str == "2026-03-18":
                 return [{"category": "task", "action": "created", "summary": "New task"}]
             return []
         mock_events.side_effect = events_for_date
         from pa_core.context import _task_streak
-        assert _task_streak("2026-03-19") == 1
+        assert _task_streak("2026-03-19") == 0
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +105,7 @@ class TestCountCompleted:
     @patch("pa_core.context.get_events")
     def test_counts_across_days(self, mock_events):
         def events_for_date(date_str):
-            return [{"category": "task", "action": "completed", "summary": "X"}]
+            return [{"category": "task", "action": "completed", "summary": "X", "details":{"task_id":date_str}}]
         mock_events.side_effect = events_for_date
         from pa_core.context import _count_completed
         assert _count_completed("2026-03-19", 3) == 3
@@ -114,7 +114,7 @@ class TestCountCompleted:
     def test_ignores_non_task_events(self, mock_events):
         mock_events.return_value = [
             {"category": "email", "action": "archived", "summary": "Y"},
-            {"category": "task", "action": "completed", "summary": "X"},
+            {"category": "task", "action": "completed", "summary": "X", "details":{"task_id":"x"}},
         ]
         from pa_core.context import _count_completed
         assert _count_completed("2026-03-19", 1) == 1
@@ -250,21 +250,16 @@ class TestFetchEmails:
 class TestFetchTasks:
     @patch("pa_notion.tasks.list_tasks")
     def test_fetch_tasks_due_soon_and_urgent(self, mock_tasks):
-        from datetime import date
-        today = date.today().isoformat()
-        tomorrow = (date.today() + timedelta(days=1)).isoformat()
         mock_tasks.return_value = [
-            {"title": "Urgent thing", "status": "To Do", "priority": "Urgent", "due_date": None},
-            {"title": "Due tomorrow", "status": "To Do", "priority": "High", "due_date": tomorrow},
-            {"title": "Done task", "status": "Done", "priority": "Low", "due_date": today},
-            {"title": "Far away", "status": "To Do", "priority": "Low", "due_date": "2099-01-01"},
+            {"id":"a","title":"Started", "status":"In Progress", "next_action":"Finish form", "owner":"Assistant"},
+            {"id":"b","title":"Waiting", "status":"Waiting", "next_action":"Check reply", "owner":"Assistant", "next_review":"2026-03-01"},
+            {"id":"c","title":"Done", "status":"Done"},
         ]
         from pa_core.context import _fetch_tasks
-        due_soon, urgent = _fetch_tasks()
-        assert len(urgent) == 1
-        assert urgent[0]["title"] == "Urgent thing"
-        assert len(due_soon) == 1
-        assert due_soon[0]["title"] == "Due tomorrow"
+        with patch("pa_core.context.get_now", return_value=FAKE_NOW), patch("pa_core.followthrough.read_state",return_value={}):
+            actions, conflicts = _fetch_tasks()
+        assert {t['id'] for t in actions} == {'a','b'}
+        assert conflicts == []
 
     @patch("pa_notion.tasks.list_tasks")
     def test_fetch_tasks_empty(self, mock_tasks):
@@ -336,7 +331,7 @@ class TestFetchCompleted:
         ]
         from pa_core.context import _fetch_completed
         result = _fetch_completed("2026-03-19")
-        assert len(result) == 2
+        assert len(result) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -378,6 +373,8 @@ class TestGetTodayContextErrors:
             patch("pa_core.context._fetch_emails", return_value=[]),
             patch("pa_core.context._fetch_tasks", return_value=([], [])),
             patch("pa_core.context._fetch_weather", return_value=FAKE_WEATHER),
+            patch("pa_notion.stats.get_task_stats", return_value={}),
+            patch("pa_notion.stats.render_stats", return_value="Task stats summary"),
         ]
 
     def test_calendar_error(self):
@@ -489,6 +486,8 @@ class TestGetTodayContextErrors:
             from pa_core.context import get_today_context
             ctx = get_today_context()
             assert ctx["errors"] == []
+            assert ctx["task_stats"] == {}
+            assert ctx["task_stats_text"] == "Task stats summary"
         finally:
             for p in patches:
                 p.stop()
@@ -550,7 +549,7 @@ class TestRenderContext:
         from pa_core.context import render_context
         ctx = self._base_ctx()
         output = render_context(ctx)
-        assert "Inbox zero!" in output
+        assert "No unread messages returned" in output
 
     def test_render_urgent_tasks(self):
         from pa_core.context import render_context
@@ -568,7 +567,7 @@ class TestRenderContext:
             {"title": "Pay bill", "due_date": "2026-03-20", "project": "Admin / Finance", "priority": "High"},
         ])
         output = render_context(ctx)
-        assert "[High] Pay bill — due 2026-03-20 [Admin / Finance]" in output
+        assert "Pay bill:" in output
 
     def test_render_completed_today(self):
         from pa_core.context import render_context
@@ -680,5 +679,5 @@ class TestRenderContext:
             {"title": "Simple task", "due_date": "2026-03-20", "project": None, "priority": None},
         ])
         output = render_context(ctx)
-        assert "Simple task — due 2026-03-20" in output
+        assert "Simple task:" in output
         assert "[None]" not in output

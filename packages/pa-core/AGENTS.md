@@ -36,7 +36,7 @@ Run `uv run pa-core memory brief` (or `uv run pa-core checkin` for a daily sessi
 Plain-file store at `private/memory/` (`$PA_MEMORY_DIR` or `memory_dir` in `user.yaml` override it):
 
 - `entries/<name>.md`: one entry per file, YAML frontmatter (`name`, `type`, `summary`, `tags`, `due`, `source`, `status`, `created`, `updated`) and a Markdown body.
-- `archive/<name>.md`: superseded entries and closed loops. Nothing is deleted.
+- `archive/<name>.md`: superseded entries and closed loops. Repeated names use `-2`, `-3`, ... suffixes, skipping existing files so earlier records are preserved.
 - `journal/YYYY-MM.md`: dated one-line notes.
 
 Types: `preference`, `lesson`, `person`, `fact`, `project`, `loop` (loops need a `due` date). Key functions: `add()` (upsert), `update()` (change some fields or append a dated note; `pa-core memory update`), `get()`, `list_entries()`, `search()`, `archive()`, `due_loops()`, `close_loop()`, `journal()`, `render_brief()` (also says whether today's check-in and email triage have happened, and gives the training log's Exercise line), `lint()`, `import_claude_memory()`. Tests isolate the store through `$PA_MEMORY_DIR` in the root `conftest.py`.
@@ -53,3 +53,8 @@ run_gws(service, resource, method, params=None, *, body=None, timeout=60, page_a
 - `params` → `--params '<json>'` flag
 - `body` → `--json '<json>'` flag
 - gws prints preamble before JSON; `parse_json_output()` skips non-JSON lines
+
+
+## Completion-driven follow-through
+
+Read [../../docs/followthrough.md](../../docs/followthrough.md). Drive one prepared next action, track ownership/review dates and distinguish capture from completion. This supersedes capture-only triage rules. Memory loops retain user context; Notion owns task state.

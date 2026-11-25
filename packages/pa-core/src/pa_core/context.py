@@ -51,7 +51,7 @@ def _task_streak(date_str: str) -> int:
         current -= timedelta(days=1)
         day_events = get_events(current.isoformat())
         has_task = any(
-            e["category"] == "task" and e["action"] in ("completed", "created")
+            e["category"] == "task" and e["action"] == "completed"
             for e in day_events
         )
         if has_task:
@@ -64,14 +64,20 @@ def _task_streak(date_str: str) -> int:
 def _count_completed(date_str: str, days_back: int) -> int:
     """Count task completion events across N days of daily logs ending at date_str."""
     total = 0
+    seen = set()
     current = datetime.strptime(date_str, "%Y-%m-%d").date()
     for i in range(days_back):
         d = current - timedelta(days=i)
         events = get_events(d.isoformat())
-        total += sum(
-            1 for e in events
-            if e["category"] == "task" and e["action"] in ("completed", "created")
-        )
+        for e in events:
+            if e["category"] != "task" or e["action"] != "completed":
+                continue
+            key = e.get("details", {}).get("task_id")
+            if not key:
+                continue
+            if key not in seen:
+                seen.add(key)
+                total += 1
     return total
 
 
@@ -173,26 +179,12 @@ def _fetch_emails() -> list[dict]:
 
 
 def _fetch_tasks() -> tuple[list[dict], list[dict]]:
-    """Fetch tasks due soon (7 days) and urgent tasks. Returns (due_soon, urgent)."""
-    from datetime import date
-
+    """Shared selector: keep active and waiting work, plus date reconciliation."""
     from pa_notion.tasks import list_tasks
-
-    all_tasks = list_tasks()
-    open_tasks = [t for t in all_tasks if t.get("status") not in ("Done",)]
-    today = date.today()
-    week_ahead = (today + timedelta(days=7)).isoformat()
-    today_str = today.isoformat()
-
-    due_soon = [
-        t for t in open_tasks
-        if t.get("due_date") and today_str <= t["due_date"] <= week_ahead
-    ]
-    due_soon.sort(key=lambda t: t.get("due_date", ""))
-
-    urgent = [t for t in open_tasks if t.get("priority") == "Urgent"]
-
-    return due_soon, urgent
+    from pa_core.followthrough import select_actions, read_state
+    now = get_now()
+    result = select_actions(list_tasks(), now['date'] + 'T' + now['time'] + ':00', state=read_state())
+    return result['actions'], result['deadline_conflicts']
 
 
 def _fetch_health(date_str: str) -> dict:
@@ -294,7 +286,7 @@ def _fetch_completed(date_str: str) -> list[dict]:
     events = get_events(date_str)
     return [
         e for e in events
-        if e["category"] == "task" and e["action"] in ("completed", "created")
+        if e["category"] == "task" and e["action"] == "completed"
     ]
 
 

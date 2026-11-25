@@ -102,7 +102,10 @@ def _extract_task(page: dict) -> dict:
 
     notes = "".join(seg.get("plain_text", "") for seg in props.get("Notes", {}).get("rich_text", []))
 
+    from pa_notion.followthrough import extract_fields
     return {
+        **extract_fields(props),
+        "created_time": page.get("created_time", ""),
         "id": page["id"],
         "title": title,
         "status": status,
@@ -164,6 +167,7 @@ def add_task(
     force: bool = False,
     due_date: str = "",
     lane: str = "",
+    **followthrough,
 ) -> dict:
     """Add a new task to the tasks database. Verifies creation by re-fetching.
 
@@ -192,6 +196,8 @@ def add_task(
     if lane:
         properties["Lane"] = {"select": {"name": lane}}
 
+    from pa_notion.followthrough import build_properties
+    properties.update(build_properties(followthrough))
     page = client.create_page(db_id, properties)
     created = _extract_task(page)
 
@@ -252,6 +258,12 @@ def update_task(task_id: str, **updates) -> dict:
         combined = f"{existing}\n\n{updates['append_notes']}" if existing else updates["append_notes"]
         properties["Notes"] = {"rich_text": _rich_text(combined)}
 
+    from pa_notion.followthrough import FIELDS, build_properties
+    properties.update(build_properties({k:v for k,v in updates.items() if k in FIELDS}))
+    before = _extract_task(client.get_page(task_id)) if "status" in updates else {}
+    if updates.get("status") in ("Done", "Discarded") and before.get("status") != updates["status"]:
+        from pa_core.config import get_now
+        properties.update(build_properties({"closed_at": get_now()["date"], "closure_reason": updates.get("closure_reason", "Completed" if updates["status"] == "Done" else "Cancelled")}))
     client.update_page(task_id, properties)
 
     # Verify by re-fetching
@@ -260,12 +272,23 @@ def update_task(task_id: str, **updates) -> dict:
     # Check each update was applied
     field_map = {"status": "status", "priority": "priority", "project": "project", "title": "title",
                  "due_date": "due_date", "lane": "lane"}
+    field_map.update({k:k for k in FIELDS})
     mismatches = []
     for key, field in field_map.items():
-        if key in updates and verified[field] != (updates[key] or ""):
+        expected = updates.get(key) or ""
+        actual = verified.get(field)
+        if key in FIELDS and FIELDS[key][1] == "date" and expected and actual:
+            from datetime import datetime
+            expected = datetime.fromisoformat(expected.replace("Z", "+00:00"))
+            actual = datetime.fromisoformat(actual.replace("Z", "+00:00"))
+        if key in updates and actual != expected:
             mismatches.append(f"{key}: expected '{updates[key]}', got '{verified[field]}'")
 
     if mismatches:
         raise RuntimeError(f"Task update verification failed for {task_id}: {'; '.join(mismatches)}")
 
+    if "status" in updates and before.get("status") != updates["status"]:
+        from pa_core.daily_log import log_event
+        action = "completed" if updates["status"] == "Done" and verified.get("closure_reason") == "Completed" else "status_changed"
+        log_event("task", action, verified["title"], details={"task_id": task_id, "from": before.get("status"), "to": updates["status"], "closure_reason": verified.get("closure_reason")})
     return verified
