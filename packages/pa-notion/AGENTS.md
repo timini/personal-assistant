@@ -71,3 +71,8 @@ The `gws drive files download` command does NOT reliably work for binary files. 
 
 ## Project Pages
 Each project has a dedicated page in Notion with task checklists, context, and reference material. When working on a project, check and update its page.
+
+
+## Completion-driven follow-through
+
+Read [../../docs/followthrough.md](../../docs/followthrough.md). Drive one prepared next action, track ownership/review dates and distinguish capture from completion. This supersedes capture-only triage rules. Memory loops retain user context; Notion owns task state.

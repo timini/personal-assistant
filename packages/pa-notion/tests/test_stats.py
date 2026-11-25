@@ -52,6 +52,7 @@ def _make_task(status="To Do", project="Admin / Finance", last_edited="2026-03-2
         "due_date": "",
         "url": "",
         "last_edited_time": last_edited,
+        "closed_at": last_edited if status == "Done" else "",
     }
 
 

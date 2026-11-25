@@ -235,47 +235,8 @@ def _focus_section(events: list[dict] | None = None) -> list[str]:
         lines.append("")
         return lines
 
-    try:
-        from pa_notion.tasks import list_tasks
-
-        open_tasks = list_tasks(status_filter="To Do")
-        if not open_tasks:
-            lines.append("## Today's Focus\n")
-            lines.append("_No open tasks — nice work!_")
-            lines.append("")
-            return lines
-
-        sorted_tasks = sorted(open_tasks, key=_task_sort_key)
-        top = sorted_tasks[:5]
-        total = len(open_tasks)
-        projects = len(set(t.get("project", "") for t in open_tasks if t.get("project")))
-
-        lines.append(f"## Today's Focus (top {len(top)} of {total} open tasks)\n")
-        today = date.today().isoformat()
-        for i, t in enumerate(top, 1):
-            priority = t.get("priority", "")
-            project = t.get("project", "")
-            due = t.get("due_date", "")
-            parts = []
-            if priority:
-                parts.append(f"[{priority}]")
-            parts.append(t.get("title", "Untitled"))
-            if due:
-                if due < today:
-                    parts.append(f"— **overdue** (due {due})")
-                else:
-                    parts.append(f"— due {due}")
-            if project:
-                parts.append(f"[{project}]")
-            lines.append(f"{i}. {' '.join(parts)}")
-
-        if total > 5:
-            lines.append(f"\n_{total} open tasks across {projects} projects. Showing the top 5._")
-    except (ImportError, Exception) as exc:
-        lines.append("## Today's Focus\n")
-        lines.append(f"_Tasks unavailable: {exc}_")
-    lines.append("")
-    return lines
+    from pa_core.followthrough import get_followthrough, render_followthrough
+    return [render_followthrough(get_followthrough()), ""]
 
 
 def _format_links(event: dict) -> str:
@@ -292,7 +253,7 @@ def _wins_section(events: list[dict]) -> list[str]:
     completed = []
     seen = set()
     for event in events:
-        if event["action"] not in ("archived", "completed", "resolved", "created"):
+        if event["action"] not in ("completed", "resolved", "submitted"):
             continue
         key = (event.get("action"), event.get("summary"), event.get("project"))
         if key in seen:

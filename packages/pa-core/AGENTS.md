@@ -53,3 +53,8 @@ run_gws(service, resource, method, params=None, *, body=None, timeout=60, page_a
 - `params` → `--params '<json>'` flag
 - `body` → `--json '<json>'` flag
 - gws prints preamble before JSON; `parse_json_output()` skips non-JSON lines
+
+
+## Completion-driven follow-through
+
+Read [../../docs/followthrough.md](../../docs/followthrough.md). Drive one prepared next action, track ownership/review dates and distinguish capture from completion. This supersedes capture-only triage rules. Memory loops retain user context; Notion owns task state.

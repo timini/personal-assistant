@@ -5,7 +5,7 @@ from pa_notion import flow
 
 def _task(id, status="To Do", lane="🅿️ Parked", due="", created="2026-01-01", last_edited="2026-06-21"):
     return {"id": id, "title": id, "status": status, "lane": lane,
-            "due": due, "created": created, "last_edited": last_edited}
+            "due": due, "created": created, "last_edited": last_edited, "last_progress": last_edited, "closed_at": last_edited if status == "Done" else ""}
 
 
 class TestComputeSnapshot:
@@ -59,7 +59,7 @@ class TestNetFlow:
         ]
         nf = flow.net_flow([], tasks, today, days=7)
         assert nf["completed"] == 1            # only 'a' edited in window
-        assert nf["source"] == "last_edited"
+        assert nf["source"] == "closed_at"
         assert nf["added"] == 1
 
     def test_building_verdict_on_rising_open(self):
